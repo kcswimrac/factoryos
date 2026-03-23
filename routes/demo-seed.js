@@ -12,6 +12,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { trackEvent } = require('../middleware/analytics');
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -1762,6 +1763,13 @@ router.post('/', async (req, res) => {
   }
 
   const ok = results.errors.length === 0;
+
+  // Track demo engagement
+  trackEvent(req, 'demo_started', {
+    projects_seeded: [results.drone && 'drone', results.baja && 'baja', results.heavy_motion && 'heavy_motion'].filter(Boolean),
+    had_errors: !ok,
+  });
+
   res.status(ok ? 200 : 207).json({
     success: ok,
     message: ok ? 'Demo data seeded successfully' : 'Seeded with errors',

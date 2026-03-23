@@ -8,6 +8,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { trackEvent } = require('../middleware/analytics');
 
 // GET /api/onboarding/status
 router.get('/status', async (req, res) => {
@@ -48,6 +49,7 @@ router.post('/setup', async (req, res) => {
     const project = projectResult.rows[0];
 
     await client.query('COMMIT');
+    trackEvent(req, 'onboarding_completed', { team_id: team.id, project_id: project.id });
     res.status(201).json({ success: true, team, project });
   } catch (err) {
     await client.query('ROLLBACK');

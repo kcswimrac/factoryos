@@ -25,6 +25,10 @@ app.use(express.json({ limit: '15mb' }));
 // Auth middleware
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 
+// Server-side analytics — track page views (no client JS needed)
+const { trackPageViews } = require('./middleware/analytics');
+app.use(trackPageViews);
+
 // Health check endpoint (required for Render)
 // Note: Does NOT query database to allow Neon auto-suspend
 app.get('/health', (req, res) => {
@@ -110,6 +114,10 @@ app.use('/api/export', authenticateToken, exportRouter);
 
 const onboardingRouter = require('./routes/onboarding');
 app.use('/api/onboarding', onboardingRouter);
+
+// ── Analytics (auth required — only logged-in users can view metrics) ────────
+const analyticsRouter = require('./routes/analytics');
+app.use('/api/analytics', authenticateToken, analyticsRouter);
 
 // Bidirectional: GET /api/nodes/:nodeId/sops
 // Returns all SOPs that include this node in their linked_nodes JSON array
