@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Factory-OS — SOPs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --bg:#0A0A0A; --surface:#111111; --surface-2:#181818; --surface-3:#1F1F1F;
+      --border:#222222; --border-light:#2e2e2e;
+      --text:#FFFFFF; --text-secondary:#A1A1AA; --text-muted:#52525B;
+      --primary:#00AE68; --primary-dim:#00875A; --primary-glow:rgba(0,174,104,0.10); --primary-border:rgba(0,174,104,0.25);
+      --danger:#ef4444; --danger-glow:rgba(239,68,68,0.10);
+      --amber:#f59e0b; --blue:#60a5fa;
+    }
+    html,body { height:100%; }
+    body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+
+    /* ── NAV ── */
+    .topnav { height:52px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid var(--border); background:var(--surface); }
+    .topnav-left { display:flex; align-items:center; gap:12px; }
+    .logo { font-family:'DM Mono',monospace; font-size:14px; font-weight:500; color:var(--text); text-decoration:none; }
+    .logo span { color:var(--primary); }
+    .nav-sep { width:1px; height:16px; background:var(--border-light); }
+    .breadcrumb { display:flex; align-items:center; gap:6px; font-size:13px; }
+    .breadcrumb a { color:var(--text-secondary); text-decoration:none; }
+    .breadcrumb a:hover { color:var(--primary); }
+    .breadcrumb-sep { color:var(--text-muted); }
+
+    /* ── BUTTONS ── */
+    .btn-ghost { height:32px; padding:0 14px; background:transparent; border:1px solid var(--border-light); border-radius:6px; color:var(--text-secondary); font-family:'DM Sans',sans-serif; font-size:13px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:6px; }
+    .btn-ghost:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-glow); }
+    .btn-primary { height:32px; padding:0 16px; background:var(--primary); border:none; border-radius:6px; color:#fff; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:6px; }
+    .btn-primary:hover { background:var(--primary-dim); }
+    .btn-primary:disabled { opacity:0.5; cursor:not-allowed; }
+    .btn-danger { height:30px; padding:0 12px; background:transparent; border:1px solid var(--danger); border-radius:6px; color:var(--danger); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; transition:all 0.15s; display:inline-flex; align-items:center; gap:4px; }
+    .btn-danger:hover { background:var(--danger-glow); }
+    .btn-sm { height:28px; padding:0 10px; font-size:12px; }
+
+    /* ── LAYOUT ── */
+    .main { flex:1; display:flex; overflow:hidden; }
+
+    /* ── LIST PANEL ── */
+    .sop-list-panel { width:290px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; background:var(--surface); }
+    .list-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+    .list-label { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); }
+    .list-search { padding:10px 12px; border-bottom:1px solid var(--border); }
+    .list-search input { width:100%; height:30px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-size:12px; padding:0 10px; outline:none; font-family:'DM Sans',sans-serif; }
+    .list-search input:focus { border-color:var(--primary); }
+    .list-search input::placeholder { color:var(--text-muted); }
+    .list-items { flex:1; overflow-y:auto; padding:8px; }
+    .list-items::-webkit-scrollbar { width:4px; }
+    .list-items::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .sop-row { padding:10px 12px; border-radius:6px; cursor:pointer; transition:background 0.12s; margin-bottom:2px; border:1px solid transparent; }
+    .sop-row:hover { background:var(--surface-2); }
+    .sop-row.active { background:var(--primary-glow); border-color:var(--primary-border); }
+    .sop-row-title { font-size:13px; font-weight:500; color:var(--text); }
+    .sop-row-meta { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:11px; color:var(--text-muted); }
+    .sdot { width:6px; height:6px; border-radius:50%; display:inline-block; }
+    .sdot.draft { background:var(--amber); }
+    .sdot.active { background:var(--primary); }
+    .sdot.archived { background:var(--text-muted); }
+    .list-empty { padding:32px 16px; text-align:center; color:var(--text-muted); font-size:13px; line-height:1.7; }
+
+    /* ── DETAIL PANEL ── */
+    .sop-detail { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    .detail-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--text-muted); text-align:center; }
+    .detail-empty .icon { font-size:48px; opacity:0.2; }
+    .detail-empty p { font-size:14px; }
+    .detail-scroll { flex:1; overflow-y:auto; padding:32px; }
+    .detail-scroll::-webkit-scrollbar { width:4px; }
+    .detail-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+    /* SOP header */
+    .sop-hdr { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; gap:16px; }
+    .sop-hdr-left { flex:1; min-width:0; }
+    .sop-rev { font-family:'DM Mono',monospace; font-size:11px; color:var(--text-muted); margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+    .sop-title { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; letter-spacing:-0.5px; color:var(--text); line-height:1.2; }
+    .sop-hdr-actions { display:flex; gap:8px; flex-shrink:0; }
+    .sop-desc-box { font-size:14px; color:var(--text-secondary); line-height:1.7; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:24px; }
+    .sec-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); margin-bottom:10px; }
+    .sec-divider { border:none; height:1px; background:var(--border); margin:24px 0; }
+
+    /* Status badge */
+    .status-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:4px; font-size:11px; font-weight:500; }
+    .status-badge.draft { background:rgba(245,158,11,0.12); color:var(--amber); }
+    .status-badge.active { background:rgba(0,174,104,0.12); color:var(--primary); }
+    .status-badge.archived { background:rgba(82,82,91,0.15); color:var(--text-muted); }
+
+    /* Linked nodes */
+    .linked-nodes-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:24px; }
+    .node-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:5px; font-size:12px; color:var(--text-secondary); }
+    .node-chip .ntype { font-size:10px; padding:1px 5px; border-radius:3px; background:var(--surface-3); color:var(--text-muted); font-family:'DM Mono',monospace; }
+    .node-chip .rm { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px; line-height:1; padding:0 2px; }
+    .node-chip .rm:hover { color:var(--danger); }
+    .node-linker-row { display:flex; gap:8px; }
+    .node-linker-sel { flex:1; height:32px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-size:12px; font-family:'DM Sans',sans-serif; padding:0 8px; outline:none; cursor:pointer; }
+    .node-linker-sel:focus { border-color:var(--primary); }
+
+    /* Steps */
+    .steps-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .step-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:10px; overflow:hidden; }
+    .step-card-hdr { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; user-select:none; }
+    .step-card-hdr:hover { background:var(--surface-2); }
+    .step-num { width:28px; height:28px; border-radius:50%; background:var(--surface-3); border:1px solid var(--border-light); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:12px; font-weight:600; color:var(--text-muted); flex-shrink:0; }
+    .step-num.open { background:var(--primary); border-color:var(--primary); color:white; }
+    .step-summary { flex:1; min-width:0; }
+    .step-preview-title { font-size:13px; font-weight:600; color:var(--text); }
+    .step-preview-desc { font-size:12px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+    .step-preview-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:5px; }
+    .tool-tag { display:inline-flex; align-items:center; padding:2px 7px; background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.25); border-radius:4px; font-size:10px; color:var(--blue); font-family:'DM Mono',monospace; }
+    .hazard-caution { background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); color:var(--amber); }
+    .hazard-warning { background:rgba(249,115,22,0.12); border:1px solid rgba(249,115,22,0.3); color:#f97316; }
+    .hazard-danger { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:var(--danger); }
+    .step-chevron { color:var(--text-muted); font-size:16px; flex-shrink:0; transition:transform 0.15s; }
+    .step-chevron.open { transform:rotate(90deg); }
+    .step-body { padding:16px; border-top:1px solid var(--border); display:none; }
+    .step-body.open { display:block; }
+
+    /* Step editor fields */
+    .field-label { font-size:10px; color:var(--text-muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:1px; font-family:'DM Mono',monospace; }
+    .field-input { width:100%; height:34px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; padding:0 10px; outline:none; }
+    .field-input:focus { border-color:var(--primary); }
+    .field-textarea { width:100%; min-height:76px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; padding:9px 10px; outline:none; resize:vertical; line-height:1.5; }
+    .field-textarea:focus { border-color:var(--primary); }
+    .fields-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
+    .tag-input-row { display:flex; gap:6px; margin-top:6px; }
+    .tag-input { flex:1; height:30px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:5px; color:var(--text); font-family:'DM Mono',monospace; font-size:11px; padding:0 8px; outline:none; }
+    .tag-input:focus { border-color:var(--primary); }
+    .tag-add-btn { height:30px; padding:0 10px; background:transparent; border:1px solid var(--border-light); border-radius:5px; color:var(--text-muted); font-size:12px; cursor:pointer; white-space:nowrap; }
+    .tag-add-btn:hover { border-color:var(--primary); color:var(--primary); }
+    .tags-list { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; min-height:18px; }
+    .tag-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:4px; font-size:11px; font-family:'DM Mono',monospace; }
+    .tag-pill.tool { background:rgba(96,165,250,0.12); border:1px solid rgba(96,165,250,0.25); color:var(--blue); }
+    .tag-pill.hazard-caution { background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); color:var(--amber); }
+    .tag-pill.hazard-warning { background:rgba(249,115,22,0.12); border:1px solid rgba(249,115,22,0.3); color:#f97316; }
+    .tag-pill.hazard-danger { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:var(--danger); }
+    .tag-pill .rm { background:none; border:none; cursor:pointer; font-size:13px; line-height:1; padding:0; opacity:0.6; }
+    .tag-pill .rm:hover { opacity:1; }
+    .haz-row { display:flex; gap:6px; margin-top:6px; }
+    .haz-sel { height:30px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:5px; color:var(--text); font-size:12px; padding:0 6px; outline:none; cursor:pointer; }
+    .haz-sel:focus { border-color:var(--primary); }
+
+    /* Images */
+    .images-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .img-thumb { position:relative; width:80px; height:80px; border-radius:6px; overflow:hidden; border:1px solid var(--border); cursor:pointer; flex-shrink:0; }
+    .img-thumb img { width:100%; height:100%; object-fit:cover; }
+    .img-rm { position:absolute; top:2px; right:2px; width:18px; height:18px; border-radius:50%; background:rgba(0,0,0,0.7); border:none; color:white; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; }
+    .img-thumb:hover .img-rm { opacity:1; }
+    .img-add-btn { width:80px; height:80px; border-radius:6px; border:1px dashed var(--border-light); background:var(--surface-2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; gap:4px; color:var(--text-muted); font-size:11px; transition:all 0.15s; flex-shrink:0; }
+    .img-add-btn:hover { border-color:var(--primary); color:var(--primary); background:var(--primary-glow); }
+
+    /* Step footer */
+    .step-footer { display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:12px; border-top:1px solid var(--border); }
+
+    /* Modal */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; }
+    .modal-overlay.open { display:flex; }
+    .modal-box { background:var(--surface); border:1px solid var(--border-light); border-radius:12px; padding:28px; width:480px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+    .modal-title { font-family:'Space Grotesk',sans-serif; font-size:18px; font-weight:700; margin-bottom:20px; }
+    .form-group { margin-bottom:14px; }
+    .form-label { display:block; font-size:10px; font-family:'DM Mono',monospace; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:5px; }
+    .form-input { width:100%; height:36px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; padding:0 12px; outline:none; }
+    .form-input:focus { border-color:var(--primary); }
+    .form-textarea { width:100%; min-height:72px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; padding:9px 12px; outline:none; resize:vertical; }
+    .form-textarea:focus { border-color:var(--primary); }
+    .form-select { width:100%; height:36px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:6px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; padding:0 12px; outline:none; cursor:pointer; }
+    .form-select:focus { border-color:var(--primary); }
+    .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:22px; }
+
+    /* Confirm */
+    .confirm-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:2000; align-items:center; justify-content:center; }
+    .confirm-overlay.open { display:flex; }
+    .confirm-box { background:var(--surface); border:1px solid var(--border-light); border-radius:10px; padding:24px; width:360px; max-width:95vw; }
+    .confirm-msg { font-size:14px; color:var(--text-secondary); line-height:1.6; margin-bottom:20px; }
+    .confirm-actions { display:flex; gap:8px; justify-content:flex-end; }
+
+    /* Lightbox */
+    .lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:9000; align-items:center; justify-content:center; }
+    .lightbox.open { display:flex; }
+    .lightbox img { max-width:90vw; max-height:90vh; border-radius:8px; }
+    .lb-close { position:absolute; top:18px; right:22px; background:none; border:none; color:white; font-size:28px; cursor:pointer; opacity:0.7; }
+    .lb-close:hover { opacity:1; }
+
+    /* Toast */
+    .toast-wrap { position:fixed; bottom:20px; right:20px; z-index:9001; display:flex; flex-direction:column; gap:8px; }
+    .toast { padding:10px 16px; border-radius:8px; font-size:13px; max-width:320px; border:1px solid; animation:tin 0.2s ease; }
+    .toast.success { background:rgba(0,174,104,0.15); border-color:rgba(0,174,104,0.4); color:#4ade80; }
+    .toast.error { background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#f87171; }
+    .toast.info { background:rgba(96,165,250,0.12); border-color:rgba(96,165,250,0.3); color:var(--blue); }
+    @keyframes tin { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+    /* Spinner */
+    .spinner { display:inline-block; width:16px; height:16px; border:2px solid var(--border-light); border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .loading-row { display:flex; align-items:center; justify-content:center; gap:8px; color:var(--text-muted); font-size:13px; padding:32px 0; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-left">
+    <a href="/" class="logo">factory<span>-os</span></a>
+    <div class="nav-sep"></div>
+    <div class="breadcrumb">
+      <a id="backLink" href="/app">◁ Design Tree</a>
+      <span class="breadcrumb-sep">/</span>
+      <span style="color:var(--text)">📋 SOPs</span>
+    </div>
+    <div class="nav-sep"></div>
+    <span id="projLabel" style="font-size:12px;color:var(--text-muted)"></span>
+  </div>
+  <div>
+    <button class="btn-primary" onclick="openCreateModal()">+ New SOP</button>
+  </div>
+</nav>
+
+<div class="main">
+  <!-- List -->
+  <div class="sop-list-panel">
+    <div class="list-header">
+      <span class="list-label">SOPs</span>
+      <span id="countBadge" style="font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace">0</span>
+    </div>
+    <div class="list-search">
+      <input type="text" id="searchInput" placeholder="Search…" oninput="filterList(this.value)">
+    </div>
+    <div class="list-items" id="listItems">
+      <div class="loading-row"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- Detail -->
+  <div class="sop-detail">
+    <div class="detail-empty" id="detailEmpty">
+      <div class="icon">📋</div>
+      <p>Select an SOP or create a new one</p>
+    </div>
+    <div class="detail-scroll" id="detailContent" style="display:none"></div>
+  </div>
+</div>
+
+<!-- SOP Modal -->
+<div class="modal-overlay" id="sopModal" onclick="modalBgClick(event)">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">New SOP</div>
+    <div class="form-group"><label class="form-label">Title *</label><input class="form-input" id="fTitle" placeholder="e.g. Brake Pad Replacement Procedure"></div>
+    <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="fDesc" rows="3" placeholder="What does this SOP cover?"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Version</label><input class="form-input" id="fVersion" placeholder="1.0"></div>
+      <div class="form-group"><label class="form-label">Revision</label><input class="form-input" id="fRevision" placeholder="A"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select class="form-select" id="fStatus">
+        <option value="draft">Draft</option>
+        <option value="active">Active</option>
+        <option value="archived">Archived</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="modalSubmitBtn" onclick="submitModal()">Create SOP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-actions">
+      <button class="btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-danger" onclick="runConfirm()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLB()">
+  <button class="lb-close" onclick="closeLB()">×</button>
+  <img id="lbImg" src="" alt="" onclick="event.stopPropagation()">
+</div>
+
+<!-- Toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- Hidden file input -->
+<input type="file" id="imgInput" accept="image/*" style="display:none" onchange="onFileChosen(event)">
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+var projectId = null;
+var allSops = [], filteredSops = [];
+var currentSopId = null, currentSop = null, currentSteps = [];
+var allNodes = [];
+var editingSopId = null;
+var confirmFn = null;
+var imgCtx = null; // { sopId, stepIdx }
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+function tok() { return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+function hdrs(json) {
+  var h = {};
+  var t = tok();
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────
+async function apiSop(method, path, body) {
+  var res = await fetch('/api/sops' + path, { method, headers: hdrs(true), body: body ? JSON.stringify(body) : undefined });
+  var d = await res.json();
+  if (!d.success) throw new Error(d.message || 'Request failed');
+  return d;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+(async function init() {
+  var p = new URLSearchParams(location.search);
+  projectId = p.get('project');
+  var sopParam = p.get('sop');
+
+  if (projectId) document.getElementById('backLink').href = '/app?project=' + projectId;
+
+  // Load project name
+  if (projectId) {
+    fetch('/api/projects/' + projectId, { headers: hdrs() })
+      .then(r => r.json()).then(d => {
+        if (d.project) {
+          document.getElementById('projLabel').textContent = d.project.name || '';
+          document.title = 'Factory-OS — SOPs — ' + (d.project.name || '');
+        }
+      }).catch(() => {});
+  }
+
+  // Load nodes for linker
+  if (projectId) {
+    fetch('/api/nodes?project_id=' + projectId, { headers: hdrs() })
+      .then(r => r.json()).then(d => { allNodes = d.nodes || []; })
+      .catch(() => {});
+  }
+
+  await loadList();
+  if (sopParam) await selectSop(Number(sopParam));
+})();
+
+// ── SOP List ──────────────────────────────────────────────────────────────
+async function loadList() {
+  var url = '/api/sops' + (projectId ? '?project_id=' + projectId : '');
+  try {
+    var res = await fetch(url, { headers: hdrs() });
+    var d = await res.json();
+    allSops = d.sops || [];
+    filteredSops = allSops.slice();
+    renderList();
+  } catch(e) {
+    document.getElementById('listItems').innerHTML = '<div style="padding:16px;color:var(--danger);font-size:13px">' + esc(e.message) + '</div>';
+  }
+}
+
+function renderList() {
+  document.getElementById('countBadge').textContent = allSops.length;
+  var c = document.getElementById('listItems');
+  if (!filteredSops.length) {
+    c.innerHTML = '<div class="list-empty">No SOPs yet.<br>Create the first one →</div>';
+    return;
+  }
+  c.innerHTML = filteredSops.map(function(s) {
+    return '<div class="sop-row' + (currentSopId === s.id ? ' active' : '') + '" onclick="selectSop(' + s.id + ')">' +
+      '<div class="sop-row-title">' + esc(s.title) + '</div>' +
+      '<div class="sop-row-meta">' +
+        '<span class="sdot ' + esc(s.status) + '"></span>' + esc(s.status) +
+        ' · v' + esc(s.version || '1.0') + ' Rev ' + esc(s.revision || 'A') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function filterList(q) {
+  var lo = (q || '').toLowerCase();
+  filteredSops = allSops.filter(function(s) { return s.title.toLowerCase().includes(lo) || (s.description || '').toLowerCase().includes(lo); });
+  renderList();
+}
+
+// ── SOP Detail ────────────────────────────────────────────────────────────
+async function selectSop(id) {
+  currentSopId = id;
+  renderList();
+  document.getElementById('detailEmpty').style.display = 'none';
+  var el = document.getElementById('detailContent');
+  el.style.display = 'block';
+  el.innerHTML = '<div class="loading-row"><div class="spinner"></div> Loading…</div>';
+  try {
+    var d = await apiSop('GET', '/' + id);
+    currentSop = d.sop;
+    currentSteps = d.steps || [];
+    renderDetail();
+  } catch(e) {
+    el.innerHTML = '<div style="padding:32px;color:var(--danger)">' + esc(e.message) + '</div>';
+  }
+}
+
+function renderDetail() {
+  var sop = currentSop;
+  var steps = currentSteps;
+  var linkedNodeIds = parseJson(sop.linked_nodes, []);
+
+  // Build linked node chips
+  var linkedChips = linkedNodeIds.map(function(nid) {
+    var n = allNodes.find(function(x) { return x.id === nid; });
+    if (!n) return '';
+    return '<span class="node-chip">' +
+      '<span class="ntype">' + esc(n.type) + '</span>' +
+      esc(n.part_number) + ' — ' + esc(n.name) +
+      '<button class="rm" onclick="unlinkNode(' + nid + ',event)" title="Unlink">×</button>' +
+    '</span>';
+  }).join('');
+
+  // Build node linker options (exclude already linked)
+  var linkedSet = new Set(linkedNodeIds);
+  var nodeOpts = allNodes.filter(function(n) { return !linkedSet.has(n.id); })
+    .map(function(n) { return '<option value="' + n.id + '">' + esc(n.part_number) + ' — ' + esc(n.name) + '</option>'; }).join('');
+
+  // Build steps
+  var stepsHtml = steps.map(function(step, i) { return renderStepCard(step, i); }).join('');
+
+  var sbClass = sop.status || 'draft';
+  document.getElementById('detailContent').innerHTML =
+    '<div class="sop-hdr">' +
+      '<div class="sop-hdr-left">' +
+        '<div class="sop-rev">v' + esc(sop.version || '1.0') + ' Rev ' + esc(sop.revision || 'A') +
+          ' <span class="status-badge ' + esc(sbClass) + '">' +
+            '<span class="sdot ' + esc(sbClass) + '"></span>' + esc(sbClass) +
+          '</span>' +
+        '</div>' +
+        '<div class="sop-title">' + esc(sop.title) + '</div>' +
+      '</div>' +
+      '<div class="sop-hdr-actions">' +
+        '<button class="btn-ghost btn-sm" onclick="openEditModal(' + sop.id + ')">Edit</button>' +
+        '<button class="btn-danger btn-sm" onclick="confirmDeleteSop(' + sop.id + ')">Delete</button>' +
+      '</div>' +
+    '</div>' +
+    (sop.description ? '<div class="sop-desc-box">' + esc(sop.description) + '</div>' : '') +
+
+    '<hr class="sec-divider">' +
+    '<div class="sec-title">Linked Design Nodes</div>' +
+    '<div class="linked-nodes-row" id="linkedNodesRow">' + (linkedChips || '<span style="font-size:12px;color:var(--text-muted)">None linked yet</span>') + '</div>' +
+    '<div class="node-linker-row">' +
+      '<select class="node-linker-sel" id="nodeSel">' +
+        '<option value="">— Select node to link —</option>' + nodeOpts +
+      '</select>' +
+      '<button class="btn-ghost btn-sm" onclick="linkNode()">Link Node</button>' +
+    '</div>' +
+
+    '<hr class="sec-divider">' +
+    '<div class="steps-hdr">' +
+      '<div class="sec-title" style="margin-bottom:0" id="stepsCountLabel">Steps (' + steps.length + ')</div>' +
+      '<button class="btn-ghost btn-sm" onclick="addStep()">+ Add Step</button>' +
+    '</div>' +
+    '<div id="stepsContainer">' + stepsHtml + '</div>';
+}
+
+// ── Step card ─────────────────────────────────────────────────────────────
+function renderStepCard(step, idx) {
+  var tools = parseJson(step.tools, []);
+  var hazards = parseJson(step.hazards, []);
+  var images = parseJson(step.images, []);
+
+  var tagPrev = tools.slice(0,4).map(function(t) { return '<span class="tool-tag">🔧 ' + esc(t) + '</span>'; }).join('');
+  tagPrev += hazards.slice(0,3).map(function(h) {
+    var sev = h.severity || 'caution';
+    var icon = sev === 'danger' ? '🚫' : sev === 'warning' ? '⚠️' : '⚡';
+    return '<span class="tool-tag hazard-' + esc(sev) + '">' + icon + ' ' + esc(h.text || h) + '</span>';
+  }).join('');
+
+  var titlePrev = step.title || ('Step ' + step.step_order);
+  var descPrev = (step.description || '').substring(0, 70) || '';
+  if ((step.description || '').length > 70) descPrev += '…';
+
+  var toolPills = tools.map(function(t, ti) {
+    return '<span class="tag-pill tool">' + esc(t) + '<button class="rm" onclick="rmTool(' + step.id + ',' + ti + ')">×</button></span>';
+  }).join('');
+
+  var hazPills = hazards.map(function(h, hi) {
+    var sev = h.severity || 'caution';
+    var icon = sev === 'danger' ? '🚫' : sev === 'warning' ? '⚠️' : '⚡';
+    return '<span class="tag-pill hazard-' + esc(sev) + '">' + icon + ' ' + esc(h.text || h) + '<button class="rm" onclick="rmHaz(' + step.id + ',' + hi + ')">×</button></span>';
+  }).join('');
+
+  var imgHtml = images.map(function(img, ii) {
+    var src = 'data:' + esc(img.mime_type || 'image/jpeg') + ';base64,' + (img.base64 || '');
+    return '<div class="img-thumb" onclick="openLB(\'' + encodeForAttr(src) + '\')">' +
+      '<img src="' + encodeForAttr(src) + '" alt="' + esc(img.caption || '') + '">' +
+      '<button class="img-rm" onclick="rmImg(' + step.id + ',' + ii + ',event)" title="Remove">×</button>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="step-card" id="sc-' + step.id + '">' +
+    '<div class="step-card-hdr" onclick="toggleStep(' + step.id + ')">' +
+      '<div class="step-num" id="snum-' + step.id + '">' + step.step_order + '</div>' +
+      '<div class="step-summary">' +
+        '<div class="step-preview-title">' + esc(titlePrev) + '</div>' +
+        (descPrev ? '<div class="step-preview-desc">' + esc(descPrev) + '</div>' : '') +
+        (tagPrev ? '<div class="step-preview-tags">' + tagPrev + '</div>' : '') +
+      '</div>' +
+      '<span class="step-chevron" id="chev-' + step.id + '">›</span>' +
+    '</div>' +
+    '<div class="step-body" id="sb-' + step.id + '">' +
+      '<div class="form-group" style="margin-bottom:10px">' +
+        '<div class="field-label">Step Title</div>' +
+        '<input class="field-input" id="st-' + step.id + '" value="' + esc(step.title || '') + '" placeholder="Short step title">' +
+      '</div>' +
+      '<div class="field-label">Description</div>' +
+      '<textarea class="field-textarea" id="sd-' + step.id + '" placeholder="Describe exactly what to do…">' + esc(step.description || '') + '</textarea>' +
+
+      '<div class="fields-grid">' +
+        '<div>' +
+          '<div class="field-label">Tools & Equipment</div>' +
+          '<div class="tags-list" id="ttools-' + step.id + '">' + toolPills + '</div>' +
+          '<div class="tag-input-row">' +
+            '<input class="tag-input" id="tinput-' + step.id + '" placeholder="e.g. 10mm socket" onkeydown="toolKey(event,' + step.id + ')">' +
+            '<button class="tag-add-btn" onclick="addTool(' + step.id + ')">+ Add</button>' +
+          '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="field-label">Hazard Warnings</div>' +
+          '<div class="tags-list" id="thaz-' + step.id + '">' + hazPills + '</div>' +
+          '<div class="haz-row">' +
+            '<select class="haz-sel" id="hsev-' + step.id + '">' +
+              '<option value="caution">⚡ Caution</option>' +
+              '<option value="warning">⚠️ Warning</option>' +
+              '<option value="danger">🚫 Danger</option>' +
+            '</select>' +
+            '<input class="tag-input" style="flex:1" id="hinput-' + step.id + '" placeholder="Describe hazard…" onkeydown="hazKey(event,' + step.id + ')">' +
+            '<button class="tag-add-btn" onclick="addHaz(' + step.id + ')">+ Add</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="margin-top:14px">' +
+        '<div class="field-label">Images</div>' +
+        '<div class="images-row" id="imgs-' + step.id + '">' +
+          imgHtml +
+          '<div class="img-add-btn" onclick="triggerImgUpload(' + step.id + ')">📷<span>Add</span></div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="step-footer">' +
+        '<button class="btn-danger btn-sm" onclick="confirmDeleteStep(' + step.id + ')">Delete Step</button>' +
+        '<button class="btn-primary btn-sm" onclick="saveStep(' + step.id + ')">Save Step</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function encodeForAttr(s) {
+  return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function parseJson(v, def) {
+  if (!v) return def;
+  if (Array.isArray(v)) return v;
+  try { return JSON.parse(v); } catch(e) { return def; }
+}
+
+function toggleStep(id) {
+  var b = document.getElementById('sb-' + id);
+  var c = document.getElementById('chev-' + id);
+  var n = document.getElementById('snum-' + id);
+  if (!b) return;
+  var open = b.classList.toggle('open');
+  if (c) c.classList.toggle('open', open);
+  if (n) n.classList.toggle('open', open);
+}
+
+// ── Add Step ──────────────────────────────────────────────────────────────
+async function addStep() {
+  if (!currentSopId) return;
+  try {
+    var nextOrder = currentSteps.length ? Math.max.apply(null, currentSteps.map(function(s) { return s.step_order; })) + 1 : 1;
+    var d = await apiSop('POST', '/' + currentSopId + '/steps', {
+      title: 'Step ' + nextOrder,
+      description: '',
+      tools: [],
+      hazards: [],
+      images: [],
+      step_order: nextOrder
+    });
+    currentSteps.push(d.step);
+    var container = document.getElementById('stepsContainer');
+    var div = document.createElement('div');
+    div.innerHTML = renderStepCard(d.step, currentSteps.length - 1);
+    container.appendChild(div.firstChild);
+    updateStepsLabel();
+    // Auto-open new step
+    toggleStep(d.step.id);
+    toast('Step added', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Save Step ─────────────────────────────────────────────────────────────
+async function saveStep(stepId) {
+  var step = currentSteps.find(function(s) { return s.id === stepId; });
+  if (!step) return;
+  var titleEl = document.getElementById('st-' + stepId);
+  var descEl  = document.getElementById('sd-' + stepId);
+  var title   = titleEl ? titleEl.value.trim() : (step.title || '');
+  var desc    = descEl  ? descEl.value : (step.description || '');
+
+  var tools   = parseJson(step.tools, []);
+  var hazards = parseJson(step.hazards, []);
+  var images  = parseJson(step.images, []);
+
+  try {
+    var d = await apiSop('PUT', '/' + currentSopId + '/steps/' + stepId, {
+      title, description: desc, tools, hazards, images
+    });
+    // Update local
+    Object.assign(step, d.step);
+    // Refresh card header preview
+    var numEl = document.getElementById('snum-' + stepId);
+    if (numEl) numEl.textContent = step.step_order;
+    var ptEl = document.querySelector('#sc-' + stepId + ' .step-preview-title');
+    if (ptEl) ptEl.textContent = title || ('Step ' + step.step_order);
+    var pdEl = document.querySelector('#sc-' + stepId + ' .step-preview-desc');
+    var dp = desc.substring(0, 70) + (desc.length > 70 ? '…' : '');
+    if (pdEl) pdEl.textContent = dp;
+    toast('Step saved', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Delete Step ───────────────────────────────────────────────────────────
+function confirmDeleteStep(stepId) {
+  showConfirm('Delete this step? This cannot be undone.', function() { deleteStep(stepId); });
+}
+async function deleteStep(stepId) {
+  try {
+    await apiSop('DELETE', '/' + currentSopId + '/steps/' + stepId);
+    currentSteps = currentSteps.filter(function(s) { return s.id !== stepId; });
+    var card = document.getElementById('sc-' + stepId);
+    if (card) card.remove();
+    updateStepsLabel();
+    toast('Step deleted', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function updateStepsLabel() {
+  var el = document.getElementById('stepsCountLabel');
+  if (el) el.textContent = 'Steps (' + currentSteps.length + ')';
+  var sopInList = allSops.find(function(s) { return s.id === currentSopId; });
+  if (sopInList) sopInList.step_count = currentSteps.length;
+}
+
+// ── Tools ─────────────────────────────────────────────────────────────────
+function getStepData(stepId, field) {
+  var step = currentSteps.find(function(s) { return s.id === stepId; });
+  return step ? parseJson(step[field], []) : [];
+}
+function setStepData(stepId, field, val) {
+  var step = currentSteps.find(function(s) { return s.id === stepId; });
+  if (step) step[field] = val;
+}
+
+function toolKey(e, id) { if (e.key === 'Enter') { e.preventDefault(); addTool(id); } }
+function addTool(id) {
+  var inp = document.getElementById('tinput-' + id); if (!inp) return;
+  var v = inp.value.trim(); if (!v) return;
+  var tools = getStepData(id, 'tools'); tools.push(v); setStepData(id, 'tools', tools);
+  inp.value = ''; refreshTools(id);
+}
+function rmTool(id, i) {
+  var tools = getStepData(id, 'tools'); tools.splice(i, 1); setStepData(id, 'tools', tools);
+  refreshTools(id);
+}
+function refreshTools(id) {
+  var c = document.getElementById('ttools-' + id); if (!c) return;
+  var tools = getStepData(id, 'tools');
+  c.innerHTML = tools.map(function(t, i) {
+    return '<span class="tag-pill tool">' + esc(t) + '<button class="rm" onclick="rmTool(' + id + ',' + i + ')">×</button></span>';
+  }).join('');
+}
+
+// ── Hazards ───────────────────────────────────────────────────────────────
+function hazKey(e, id) { if (e.key === 'Enter') { e.preventDefault(); addHaz(id); } }
+function addHaz(id) {
+  var inp = document.getElementById('hinput-' + id);
+  var sel = document.getElementById('hsev-' + id);
+  if (!inp || !sel) return;
+  var t = inp.value.trim(); if (!t) return;
+  var hazards = getStepData(id, 'hazards');
+  hazards.push({ text: t, severity: sel.value });
+  setStepData(id, 'hazards', hazards);
+  inp.value = ''; refreshHazards(id);
+}
+function rmHaz(id, i) {
+  var hazards = getStepData(id, 'hazards'); hazards.splice(i, 1); setStepData(id, 'hazards', hazards);
+  refreshHazards(id);
+}
+function refreshHazards(id) {
+  var c = document.getElementById('thaz-' + id); if (!c) return;
+  var hazards = getStepData(id, 'hazards');
+  c.innerHTML = hazards.map(function(h, i) {
+    var sev = h.severity || 'caution';
+    var icon = sev === 'danger' ? '🚫' : sev === 'warning' ? '⚠️' : '⚡';
+    return '<span class="tag-pill hazard-' + esc(sev) + '">' + icon + ' ' + esc(h.text || h) + '<button class="rm" onclick="rmHaz(' + id + ',' + i + ')">×</button></span>';
+  }).join('');
+}
+
+// ── Images ────────────────────────────────────────────────────────────────
+var imgTargetStepId = null;
+function triggerImgUpload(stepId) {
+  imgTargetStepId = stepId;
+  document.getElementById('imgInput').value = '';
+  document.getElementById('imgInput').click();
+}
+function onFileChosen(e) {
+  var f = e.target.files[0]; if (!f) return;
+  if (f.size > 5 * 1024 * 1024) { toast('Max 5MB per image', 'error'); return; }
+  var r = new FileReader();
+  r.onload = function(ev) {
+    var dataUrl = ev.target.result;
+    var b64 = dataUrl.split(',')[1];
+    attachImage(imgTargetStepId, b64, f.type || 'image/jpeg');
+  };
+  r.readAsDataURL(f);
+}
+function attachImage(stepId, b64, mime) {
+  var images = getStepData(stepId, 'images');
+  images.push({ base64: b64, mime_type: mime, caption: '' });
+  setStepData(stepId, 'images', images);
+  refreshImages(stepId);
+}
+function rmImg(stepId, idx, e) {
+  e.stopPropagation();
+  var images = getStepData(stepId, 'images'); images.splice(idx, 1); setStepData(stepId, 'images', images);
+  refreshImages(stepId);
+}
+function refreshImages(stepId) {
+  var c = document.getElementById('imgs-' + stepId); if (!c) return;
+  var images = getStepData(stepId, 'images');
+  var html = images.map(function(img, ii) {
+    var src = 'data:' + (img.mime_type || 'image/jpeg') + ';base64,' + (img.base64 || '');
+    return '<div class="img-thumb" onclick="openLB(\'' + encodeForAttr(src) + '\')">' +
+      '<img src="' + encodeForAttr(src) + '" alt="">' +
+      '<button class="img-rm" onclick="rmImg(' + stepId + ',' + ii + ',event)">×</button>' +
+    '</div>';
+  }).join('');
+  html += '<div class="img-add-btn" onclick="triggerImgUpload(' + stepId + ')">📷<span>Add</span></div>';
+  c.innerHTML = html;
+}
+
+// ── Node Linking ──────────────────────────────────────────────────────────
+async function linkNode() {
+  var sel = document.getElementById('nodeSel');
+  if (!sel || !sel.value) { toast('Select a node', 'error'); return; }
+  var nodeId = Number(sel.value);
+  var existing = parseJson(currentSop.linked_nodes, []);
+  if (existing.includes(nodeId)) { toast('Already linked', 'info'); return; }
+  var updated = existing.concat([nodeId]);
+  try {
+    var d = await apiSop('PUT', '/' + currentSopId, { linked_nodes: updated });
+    currentSop.linked_nodes = d.sop.linked_nodes;
+    // Refresh linked nodes display
+    reRenderLinkedNodes();
+    // Remove from select
+    sel.querySelector('option[value="' + nodeId + '"]')?.remove();
+    sel.value = '';
+    toast('Node linked', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function unlinkNode(nodeId, e) {
+  if (e) e.stopPropagation();
+  var existing = parseJson(currentSop.linked_nodes, []);
+  var updated = existing.filter(function(id) { return id !== nodeId; });
+  try {
+    var d = await apiSop('PUT', '/' + currentSopId, { linked_nodes: updated });
+    currentSop.linked_nodes = d.sop.linked_nodes;
+    reRenderLinkedNodes();
+    // Add back to select
+    var node = allNodes.find(function(n) { return n.id === nodeId; });
+    var sel = document.getElementById('nodeSel');
+    if (node && sel) {
+      var opt = document.createElement('option');
+      opt.value = node.id;
+      opt.textContent = node.part_number + ' — ' + node.name;
+      sel.appendChild(opt);
+    }
+    toast('Node unlinked', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+function reRenderLinkedNodes() {
+  var row = document.getElementById('linkedNodesRow'); if (!row) return;
+  var linkedIds = parseJson(currentSop.linked_nodes, []);
+  if (!linkedIds.length) { row.innerHTML = '<span style="font-size:12px;color:var(--text-muted)">None linked yet</span>'; return; }
+  row.innerHTML = linkedIds.map(function(nid) {
+    var n = allNodes.find(function(x) { return x.id === nid; });
+    if (!n) return '';
+    return '<span class="node-chip">' +
+      '<span class="ntype">' + esc(n.type) + '</span>' +
+      esc(n.part_number) + ' — ' + esc(n.name) +
+      '<button class="rm" onclick="unlinkNode(' + nid + ',event)">×</button>' +
+    '</span>';
+  }).join('');
+}
+
+// ── Create / Edit SOP Modal ───────────────────────────────────────────────
+function openCreateModal() {
+  editingSopId = null;
+  document.getElementById('modalTitle').textContent = 'New SOP';
+  document.getElementById('modalSubmitBtn').textContent = 'Create SOP';
+  document.getElementById('fTitle').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fVersion').value = '1.0';
+  document.getElementById('fRevision').value = 'A';
+  document.getElementById('fStatus').value = 'draft';
+  document.getElementById('sopModal').classList.add('open');
+  setTimeout(function() { document.getElementById('fTitle').focus(); }, 80);
+}
+
+function openEditModal(id) {
+  var s = allSops.find(function(x) { return x.id === id; }) || currentSop;
+  if (!s) return;
+  editingSopId = id;
+  document.getElementById('modalTitle').textContent = 'Edit SOP';
+  document.getElementById('modalSubmitBtn').textContent = 'Save Changes';
+  document.getElementById('fTitle').value = s.title || '';
+  document.getElementById('fDesc').value = s.description || '';
+  document.getElementById('fVersion').value = s.version || '1.0';
+  document.getElementById('fRevision').value = s.revision || 'A';
+  document.getElementById('fStatus').value = s.status || 'draft';
+  document.getElementById('sopModal').classList.add('open');
+  setTimeout(function() { document.getElementById('fTitle').focus(); }, 80);
+}
+
+function closeModal() { document.getElementById('sopModal').classList.remove('open'); editingSopId = null; }
+function modalBgClick(e) { if (e.target === document.getElementById('sopModal')) closeModal(); }
+
+async function submitModal() {
+  var title = document.getElementById('fTitle').value.trim();
+  if (!title) { toast('Title is required', 'error'); return; }
+  var btn = document.getElementById('modalSubmitBtn');
+  btn.disabled = true; btn.textContent = editingSopId ? 'Saving…' : 'Creating…';
+  var body = {
+    title,
+    description: document.getElementById('fDesc').value.trim() || '',
+    version: document.getElementById('fVersion').value.trim() || '1.0',
+    revision: document.getElementById('fRevision').value.trim() || 'A',
+    status: document.getElementById('fStatus').value || 'draft',
+    project_id: projectId ? Number(projectId) : null
+  };
+  try {
+    if (editingSopId) {
+      var d = await apiSop('PUT', '/' + editingSopId, body);
+      var idx = allSops.findIndex(function(s) { return s.id === editingSopId; });
+      if (idx >= 0) Object.assign(allSops[idx], d.sop);
+      if (currentSopId === editingSopId) { currentSop = Object.assign(currentSop || {}, d.sop); renderDetail(); }
+      toast('SOP updated', 'success');
+    } else {
+      var d = await apiSop('POST', '', body);
+      allSops.unshift(d.sop);
+      filteredSops = allSops.slice();
+      renderList();
+      selectSop(d.sop.id);
+      toast('SOP created', 'success');
+    }
+    closeModal();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = editingSopId ? 'Save Changes' : 'Create SOP';
+  }
+}
+
+// ── Delete SOP ────────────────────────────────────────────────────────────
+function confirmDeleteSop(id) {
+  var s = allSops.find(function(x) { return x.id === id; });
+  showConfirm('Delete "' + (s ? s.title : 'this SOP') + '"? All steps will be removed.', function() { deleteSop(id); });
+}
+async function deleteSop(id) {
+  try {
+    await apiSop('DELETE', '/' + id);
+    allSops = allSops.filter(function(s) { return s.id !== id; });
+    filteredSops = filteredSops.filter(function(s) { return s.id !== id; });
+    renderList();
+    if (currentSopId === id) {
+      currentSopId = null; currentSop = null; currentSteps = [];
+      document.getElementById('detailContent').style.display = 'none';
+      document.getElementById('detailEmpty').style.display = '';
+    }
+    toast('SOP deleted', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Confirm ───────────────────────────────────────────────────────────────
+function showConfirm(msg, fn) { document.getElementById('confirmMsg').textContent = msg; confirmFn = fn; document.getElementById('confirmOverlay').classList.add('open'); }
+function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('open'); confirmFn = null; }
+function runConfirm() { closeConfirm(); if (confirmFn) confirmFn(); }
+
+// ── Lightbox ──────────────────────────────────────────────────────────────
+function openLB(src) { document.getElementById('lbImg').src = src; document.getElementById('lightbox').classList.add('open'); }
+function closeLB() { document.getElementById('lightbox').classList.remove('open'); document.getElementById('lbImg').src = ''; }
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg, type) {
+  var c = document.getElementById('toastWrap');
+  var t = document.createElement('div');
+  t.className = 'toast ' + (type || 'info');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(function() { t.parentNode && t.parentNode.removeChild(t); }, 3200);
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('lightbox').classList.contains('open')) { closeLB(); return; }
+  if (document.getElementById('confirmOverlay').classList.contains('open')) { closeConfirm(); return; }
+  if (document.getElementById('sopModal').classList.contains('open')) { closeModal(); return; }
+});
+</script>
+</body>
+</html>

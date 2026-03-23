@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory-OS — Engineering Discipline Software</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0a;
+            --surface: #111111;
+            --surface-2: #181818;
+            --surface-3: #1f1f1f;
+            --border: #222222;
+            --border-light: #2e2e2e;
+            --text: #ffffff;
+            --text-secondary: #a1a1aa;
+            --text-muted: #52525b;
+            --primary: #00ae68;
+            --primary-dim: #00875a;
+            --primary-glow: rgba(0, 174, 104, 0.1);
+            --primary-border: rgba(0, 174, 104, 0.25);
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Grid background */
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .content { position: relative; z-index: 1; }
+
+        /* Nav */
+        nav {
+            padding: 24px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(10,10,10,0.8);
+        }
+        .logo {
+            font-family: 'DM Mono', monospace;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+            color: var(--text);
+        }
+        .logo span { color: var(--primary); }
+        .nav-tag {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .nav-app-btn {
+            height: 32px; padding: 0 16px;
+            background: var(--primary-glow);
+            border: 1px solid var(--primary-border);
+            border-radius: 6px; color: var(--primary);
+            font-family: 'DM Mono', monospace; font-size: 11px;
+            letter-spacing: 1px; text-transform: uppercase;
+            text-decoration: none;
+            display: flex; align-items: center; gap: 6px;
+            transition: all 0.15s;
+        }
+        .nav-app-btn:hover { background: rgba(0, 174, 104, 0.15); }
+
+        /* Hero */
+        .hero {
+            padding: 120px 40px 100px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .hero-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .hero-label::before {
+            content: '';
+            width: 40px;
+            height: 1px;
+            background: var(--primary-dim);
+        }
+        .hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(40px, 6vw, 72px);
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            margin-bottom: 32px;
+        }
+        .hero h1 em {
+            font-style: normal;
+            color: var(--primary);
+        }
+        .hero-sub {
+            font-size: 20px;
+            color: var(--text-secondary);
+            max-width: 600px;
+            line-height: 1.7;
+        }
+
+        /* Divider */
+        .divider {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-light) 20%, var(--border-light) 80%, transparent);
+            margin: 0 40px;
+        }
+
+        /* Problem section */
+        .problem {
+            padding: 100px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .problem-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: start;
+        }
+        .problem-left h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+        .problem-left p {
+            font-size: 28px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            line-height: 1.4;
+            letter-spacing: -0.5px;
+        }
+        .problem-left p span { color: var(--primary); }
+
+        .problem-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px;
+        }
+        .stat-card .number {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+        .stat-card .label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Features */
+        .features {
+            padding: 100px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .features-header {
+            margin-bottom: 64px;
+        }
+        .features-header h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .features-header p {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            max-width: 600px;
+        }
+
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .feature-item {
+            background: var(--surface);
+            padding: 40px 32px;
+            transition: background 0.3s;
+        }
+        .feature-item:hover {
+            background: var(--surface-2);
+        }
+        .feature-icon {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--primary);
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            padding: 6px 10px;
+            background: var(--primary-glow);
+            border: 1px solid rgba(0, 174, 104, 0.25);
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .feature-item h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            letter-spacing: -0.3px;
+        }
+        .feature-item p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Pillars — 3-column, full width */
+        .pillars {
+            padding: 100px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .pillars-header {
+            margin-bottom: 64px;
+        }
+        .pillars-header h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .pillars-header p {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            max-width: 640px;
+        }
+        .pillar-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .pillar-item {
+            background: var(--surface);
+            padding: 48px 36px;
+            transition: background 0.3s;
+        }
+        .pillar-item:hover {
+            background: var(--surface-2);
+        }
+        .pillar-tag {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--primary);
+            letter-spacing: 1px;
+            margin-bottom: 24px;
+            padding: 6px 10px;
+            background: var(--primary-glow);
+            border: 1px solid rgba(0, 174, 104, 0.25);
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .pillar-item h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+        }
+        .pillar-item > p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            line-height: 1.75;
+            margin-bottom: 24px;
+        }
+        .pillar-details {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .pillar-details li {
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pillar-details li::before {
+            content: '→';
+            color: var(--primary-dim);
+        }
+
+        /* Comparison */
+        .comparison {
+            padding: 100px 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .comparison h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+        .comp-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .comp-table th, .comp-table td {
+            text-align: left;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        .comp-table th {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .comp-table td:first-child {
+            color: var(--text-secondary);
+        }
+        .comp-table .them { color: var(--text-muted); }
+        .comp-table .us {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        /* Closing */
+        .closing {
+            padding: 120px 40px;
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .closing h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(28px, 4vw, 44px);
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1.2;
+            margin-bottom: 24px;
+        }
+        .closing h2 em {
+            font-style: normal;
+            color: var(--primary);
+        }
+        .closing p {
+            font-size: 17px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        footer .footer-logo {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        footer .footer-logo span { color: var(--primary-dim); }
+        footer .footer-right {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .footer-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .footer-links a {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+        .footer-links a:hover { color: var(--primary); }
+        @media (max-width: 768px) {
+            .footer-links { gap: 12px; flex-wrap: wrap; justify-content: center; }
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            nav { padding: 16px 20px; }
+            .hero { padding: 80px 20px 60px; }
+            .hero-sub { font-size: 17px; }
+            .problem { padding: 60px 20px; }
+            .problem-grid {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+            .problem-left p { font-size: 22px; }
+            .problem-stats { grid-template-columns: 1fr 1fr; gap: 12px; }
+            .stat-card { padding: 20px; }
+            .stat-card .number { font-size: 28px; }
+            .features { padding: 60px 20px; }
+            .features-header p { font-size: 24px; }
+            .feature-list {
+                grid-template-columns: 1fr;
+            }
+            .pillars { padding: 60px 20px; }
+            .pillars-header p { font-size: 24px; }
+            .pillar-list { grid-template-columns: 1fr; }
+            .comparison { padding: 60px 20px; }
+            .comp-table th, .comp-table td { padding: 12px 10px; font-size: 13px; }
+            .closing { padding: 80px 20px; }
+            footer { padding: 24px 20px; flex-direction: column; gap: 12px; }
+            .divider { margin: 0 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="content">
+        <nav>
+            <div class="logo">factory<span>-os</span></div>
+            <div class="nav-right">
+                <div class="nav-tag">Engineering Discipline</div>
+                <a href="/invest" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-muted);text-decoration:none;letter-spacing:1px;text-transform:uppercase;transition:color 0.15s;" onmouseover="this.style.color='#00ae68'" onmouseout="this.style.color='var(--text-muted)'">Invest</a>
+                <a href="/projects" class="nav-app-btn">▶ Launch App</a>
+            </div>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-label">For hardware engineering teams</div>
+            <h1>Good engineers.<br><em>Undisciplined process.</em></h1>
+            <p class="hero-sub">Factory-OS enforces engineering rigor — phase gating, structured experiments, versioned SOPs. Not another place to store files. A system that teaches and holds your team to the process.</p>
+        </section>
+
+        <hr class="divider">
+
+        <section class="problem">
+            <div class="problem-grid">
+                <div class="problem-left">
+                    <h2>The Problem</h2>
+                    <p>Most hardware failures trace back to <span>design decisions</span> made without structure — no phase gates, no real experiments, no repeatable process. The tools aren't the problem. The discipline is.</p>
+                </div>
+                <div class="problem-stats">
+                    <div class="stat-card">
+                        <div class="number">70%</div>
+                        <div class="label">of product failures are rooted in decisions made in the first 10% of development</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number">3–5×</div>
+                        <div class="label">more design iterations than necessary without structured DOE</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number">$5K+</div>
+                        <div class="label">per seat for enterprise PLM — built for procurement, not engineering</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number">0</div>
+                        <div class="label">tools that enforce design methodology without requiring a consultant</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="pillars">
+            <div class="pillars-header">
+                <h2>Three Pillars</h2>
+                <p>Engineering discipline has a shape. Factory-OS enforces it.</p>
+            </div>
+            <div class="pillar-list">
+                <div class="pillar-item">
+                    <div class="pillar-tag">01 / RIGOR</div>
+                    <h3>Design Rigor</h3>
+                    <p>Structured engineering lifecycle with enforced phase gating. Your design can't move forward until it's earned the right to — evidence required, not optional.</p>
+                    <ul class="pillar-details">
+                        <li>Concept → Feasibility → Detailed Design → Verification</li>
+                        <li>Phase gate checklists tied to actual deliverables</li>
+                        <li>No skipping phases without a documented exception</li>
+                        <li>Full audit trail of design decisions and approvals</li>
+                    </ul>
+                </div>
+                <div class="pillar-item">
+                    <div class="pillar-tag">02 / DOE</div>
+                    <h3>Design of Experiments</h3>
+                    <p>Real statistical studies, not gut-check prototypes. Run Full Factorial, Fractional Factorial, and Plackett-Burman studies with proper analysis built in.</p>
+                    <ul class="pillar-details">
+                        <li>Full Factorial &amp; Fractional Factorial designs</li>
+                        <li>Plackett-Burman for factor screening</li>
+                        <li>Main effects, interactions, response surface</li>
+                        <li>Outputs tied directly to design decisions</li>
+                    </ul>
+                </div>
+                <div class="pillar-item">
+                    <div class="pillar-tag">03 / SOPs</div>
+                    <h3>Standard Operating Procedures</h3>
+                    <p>Version-controlled, repeatable procedures that live where the work happens. Not in a shared drive no one updates. Not in someone's head when they leave.</p>
+                    <ul class="pillar-details">
+                        <li>Versioned SOP library with change history</li>
+                        <li>Linked directly to phases and experiments</li>
+                        <li>Approval workflows for procedure changes</li>
+                        <li>Execution logs when SOPs are followed</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <section class="comparison">
+            <h2>How We Compare</h2>
+            <table class="comp-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Spreadsheets &amp; PLM</th>
+                        <th>Factory-OS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Process enforcement</td>
+                        <td class="them">Optional. Nobody checks.</td>
+                        <td class="us">Built-in phase gates</td>
+                    </tr>
+                    <tr>
+                        <td>Design experiments</td>
+                        <td class="them">Ad hoc or skipped</td>
+                        <td class="us">Structured DOE with analysis</td>
+                    </tr>
+                    <tr>
+                        <td>SOPs</td>
+                        <td class="them">Stale docs in a drive</td>
+                        <td class="us">Versioned, linked, enforced</td>
+                    </tr>
+                    <tr>
+                        <td>Positioning</td>
+                        <td class="them">File storage / ERP add-on</td>
+                        <td class="us">Engineering methodology tool</td>
+                    </tr>
+                    <tr>
+                        <td>Teaches discipline</td>
+                        <td class="them">No</td>
+                        <td class="us">Yes — opinionated by design</td>
+                    </tr>
+                    <tr>
+                        <td>Price</td>
+                        <td class="them">$5K–$15K/seat (enterprise)</td>
+                        <td class="us">$49/user/month</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <hr class="divider">
+
+        <section class="closing">
+            <h2>Engineering discipline is <em>learnable.</em><br>It should also be enforced.</h2>
+            <p>Factory-OS is the TurboTax for engineering process — opinionated, structured, and priced for teams who aren't Fortune 500. It doesn't just store your work. It holds you to a standard.</p>
+        </section>
+
+        <footer>
+            <div class="footer-logo">factory<span>-os</span></div>
+            <div class="footer-links">
+                <a href="/privacy">Privacy Policy</a>
+                <a href="/terms">Terms of Use</a>
+                <a href="mailto:support@factory-os.com">Help</a>
+            </div>
+            <div class="footer-right">Engineering Discipline Software</div>
+        </footer>
+    </div>
+
+    <!-- Polsia Analytics -->
+    <script>
+    (function() {
+        var slug = 'factoryos';
+        if (!slug) return;
+        var vid = localStorage.getItem('polsia_vid');
+        if (!vid) {
+            vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+            localStorage.setItem('polsia_vid', vid);
+        }
+        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
+    })();
+    </script>
+</body>
+</html>

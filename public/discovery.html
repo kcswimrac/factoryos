@@ -1,0 +1,2410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Factory-OS — Discovery Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg:             #0A0A0A;
+      --surface:        #111111;
+      --surface-2:      #181818;
+      --surface-3:      #1F1F1F;
+      --border:         #222222;
+      --border-light:   #2e2e2e;
+      --text:           #FFFFFF;
+      --text-secondary: #A1A1AA;
+      --text-muted:     #52525B;
+      --primary:        #00AE68;
+      --primary-dim:    #00875A;
+      --primary-glow:   rgba(0,174,104,0.10);
+      --primary-border: rgba(0,174,104,0.25);
+      --danger:         #ef4444;
+      --danger-glow:    rgba(239,68,68,0.10);
+      --amber:          #f59e0b;
+      --blue:           #60a5fa;
+      --purple:         #a78bfa;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── TOP NAV ── */
+    .topnav {
+      height: 52px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .topnav-left { display: flex; align-items: center; gap: 12px; }
+    .logo { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--text); text-decoration: none; }
+    .logo span { color: var(--primary); }
+    .nav-sep { width: 1px; height: 16px; background: var(--border-light); }
+    .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+    .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--primary); }
+    .breadcrumb-sep { color: var(--text-muted); }
+    .breadcrumb-current { color: var(--text); }
+    .topnav-right { display: flex; align-items: center; gap: 8px; }
+
+    /* ── BUTTONS ── */
+    .btn-ghost {
+      height: 32px; padding: 0 14px;
+      background: transparent; border: 1px solid var(--border-light); border-radius: 6px;
+      color: var(--text-secondary); font-family: 'DM Sans', sans-serif; font-size: 13px;
+      cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-ghost:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
+    .btn-primary {
+      height: 32px; padding: 0 16px;
+      background: var(--primary); border: none; border-radius: 6px;
+      color: #fff; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary:hover { background: var(--primary-dim); }
+    .btn-danger {
+      height: 32px; padding: 0 14px;
+      background: transparent; border: 1px solid var(--danger); border-radius: 6px;
+      color: var(--danger); font-family: 'DM Sans', sans-serif; font-size: 13px;
+      cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-danger:hover { background: var(--danger-glow); }
+    .btn-sm { height: 28px !important; padding: 0 10px !important; font-size: 12px !important; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── AI ASSIST BAR ── */
+    .ai-bar {
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .ai-bar-header {
+      height: 40px; padding: 0 20px;
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+    }
+    .ai-bar-header:hover { background: var(--surface-3); }
+    .ai-bar-icon { font-size: 14px; }
+    .ai-bar-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.5px; }
+    .ai-bar-label span { color: var(--primary); }
+    .ai-bar-toggle { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+    .ai-bar-body {
+      display: none; padding: 0 20px 14px;
+      flex-direction: column; gap: 12px;
+    }
+    .ai-bar-body.open { display: flex; }
+    .ai-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-ai {
+      height: 30px; padding: 0 14px;
+      background: var(--surface-3); border: 1px solid var(--border-light); border-radius: 6px;
+      color: var(--text-secondary); font-family: 'DM Sans', sans-serif; font-size: 12px;
+      cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-ai:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
+    .btn-ai.loading { opacity: 0.7; cursor: default; }
+    .ai-result {
+      background: var(--surface-3); border: 1px solid var(--border-light); border-radius: 8px;
+      padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+      max-height: 320px; overflow-y: auto;
+    }
+    .ai-result-title { font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+    .ai-result-body { display: flex; flex-direction: column; gap: 8px; }
+    .ai-tag-group {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .ai-tag-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+    .ai-tag-info { flex: 1; min-width: 0; }
+    .ai-tag-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .ai-tag-rationale { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+    .ai-tag-apply { height: 24px; padding: 0 10px; flex-shrink: 0; font-size: 11px; }
+    .ai-subsystem {
+      padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .ai-subsys-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .ai-subsys-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+    .ai-subsys-type { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); background: var(--surface-3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; margin-top: 4px; }
+    .ai-action-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .ai-action-priority { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+    .ai-action-info { flex: 1; min-width: 0; }
+    .ai-action-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .ai-action-why { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .ai-action-btn { height: 24px; padding: 0 10px; flex-shrink: 0; font-size: 11px; }
+    .ai-reasoning { font-size: 12px; color: var(--text-muted); font-style: italic; padding-top: 6px; border-top: 1px solid var(--border); }
+    .ai-next-action {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; background: var(--primary-glow); border: 1px solid var(--primary-border); border-radius: 6px;
+    }
+    .ai-next-action-label { font-size: 11px; font-weight: 600; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+    .ai-next-action-text { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+
+    /* ── TOOLBAR ── */
+    .toolbar {
+      flex-shrink: 0;
+      height: 46px; padding: 0 20px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .filter-label { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+    .filter-chip {
+      height: 26px; padding: 0 10px;
+      background: transparent; border: 1px solid var(--border-light); border-radius: 20px;
+      color: var(--text-muted); font-size: 11px; cursor: pointer; transition: all 0.12s;
+      display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .filter-chip.active { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
+    .filter-chip:hover:not(.active) { border-color: var(--border-light); color: var(--text-secondary); }
+    .toolbar-sep { width: 1px; height: 18px; background: var(--border-light); flex-shrink: 0; }
+    .toolbar-spacer { flex: 1; }
+    #search-input {
+      height: 28px; padding: 0 10px; width: 180px;
+      background: var(--surface-2); border: 1px solid var(--border-light); border-radius: 6px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 12px; outline: none;
+      transition: border-color 0.15s;
+    }
+    #search-input:focus { border-color: var(--primary); }
+    #search-input::placeholder { color: var(--text-muted); }
+
+    /* ── MAIN / GRID ── */
+    .main { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
+
+    .objects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    /* ── OBJECT CARD ── */
+    .obj-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px;
+      cursor: pointer; transition: all 0.15s; position: relative;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .obj-card:hover { border-color: var(--border-light); background: var(--surface-2); }
+    .obj-card.promoted { border-color: var(--primary-border); }
+    .obj-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .obj-title { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.3; flex: 1; min-width: 0; }
+    .obj-type-badge {
+      flex-shrink: 0; height: 20px; padding: 0 7px;
+      background: var(--surface-3); border: 1px solid var(--border-light); border-radius: 4px;
+      font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted);
+      display: flex; align-items: center;
+    }
+    .obj-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; flex: 1; }
+    .obj-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag-chip {
+      height: 18px; padding: 0 7px; border-radius: 10px;
+      font-size: 10px; font-weight: 500; cursor: default;
+      display: inline-flex; align-items: center;
+    }
+    .obj-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+    .maturity-badge {
+      height: 20px; padding: 0 8px; border-radius: 4px;
+      font-size: 11px; font-weight: 600;
+      display: inline-flex; align-items: center;
+    }
+    .maturity-raw        { background: rgba(82,82,91,0.3);   color: #A1A1AA; border: 1px solid #3f3f46; }
+    .maturity-repeatable { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    .maturity-promotable { background: rgba(96,165,250,0.15); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+    .maturity-formal     { background: rgba(0,174,104,0.15);  color: #00AE68; border: 1px solid rgba(0,174,104,0.3); }
+    .confidence-low      { background: rgba(82,82,91,0.2);   color: #A1A1AA; border: 1px solid #3f3f46; }
+    .confidence-medium   { background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.25); }
+    .confidence-high     { background: rgba(0,174,104,0.12);  color: #00AE68; border: 1px solid rgba(0,174,104,0.25); }
+
+    .cluster-badge {
+      height: 20px; padding: 0 7px; border-radius: 4px;
+      font-size: 10px; font-family: 'DM Mono', monospace;
+      display: inline-flex; align-items: center;
+    }
+    .conf-low    { background: rgba(239,68,68,0.10);   color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+    .conf-medium { background: rgba(245,158,11,0.10);  color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+    .conf-high   { background: rgba(74,222,128,0.10);  color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+    .promoted-badge {
+      height: 20px; padding: 0 8px; border-radius: 4px;
+      background: var(--primary-glow); border: 1px solid var(--primary-border);
+      font-size: 10px; color: var(--primary); font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .promote-btn {
+      height: 26px; padding: 0 10px;
+      background: var(--primary); border: none; border-radius: 5px;
+      color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s; margin-left: auto; flex-shrink: 0;
+    }
+    .promote-btn:hover { background: var(--primary-dim); }
+
+    /* empty state */
+    .empty-state {
+      grid-column: 1 / -1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 60px 20px; text-align: center; gap: 12px;
+    }
+    .empty-icon { font-size: 40px; opacity: 0.4; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+    .empty-sub { font-size: 13px; color: var(--text-muted); max-width: 320px; }
+
+    /* ── MODAL ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px;
+      padding: 24px; width: 500px; max-width: 96vw; max-height: 92vh; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .modal-wide { width: 580px; }
+    .modal-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .modal-sub { font-size: 13px; color: var(--text-secondary); margin-top: -8px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+    .form-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: var(--surface-2); border: 1px solid var(--border-light); border-radius: 6px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px;
+      padding: 8px 10px; outline: none; transition: border-color 0.15s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); }
+    .form-select option { background: var(--surface-2); }
+    .form-textarea { resize: vertical; min-height: 68px; }
+    .form-hint { font-size: 11px; color: var(--text-muted); }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+    /* Promotion wizard steps */
+    .wizard-steps {
+      display: flex; gap: 8px; align-items: center;
+      padding: 2px 0 6px;
+    }
+    .wizard-step {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .wizard-step.active { color: var(--primary); }
+    .wizard-step.done { color: var(--text-secondary); }
+    .wizard-step-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      border: 1px solid var(--border-light); color: var(--text-muted);
+    }
+    .wizard-step.active .wizard-step-num { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
+    .wizard-step.done .wizard-step-num  { border-color: var(--primary); color: var(--primary); background: var(--primary-glow); }
+    .wizard-step-arrow { color: var(--text-muted); font-size: 10px; }
+
+    .type-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    }
+    .type-option {
+      padding: 10px 8px; text-align: center;
+      background: var(--surface-2); border: 2px solid var(--border-light); border-radius: 8px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .type-option:hover { border-color: var(--primary); background: var(--primary-glow); }
+    .type-option.selected { border-color: var(--primary); background: var(--primary-glow); }
+    .type-option-label { font-size: 12px; font-weight: 600; color: var(--text); margin-top: 4px; }
+    .type-option-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+    .parent-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+    .parent-option {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; background: var(--surface-2); border: 2px solid var(--border-light); border-radius: 7px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .parent-option:hover { border-color: var(--primary); }
+    .parent-option.selected { border-color: var(--primary); background: var(--primary-glow); }
+    .parent-option-type { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); background: var(--surface-3); border: 1px solid var(--border); border-radius: 3px; padding: 2px 6px; }
+    .parent-option-name { font-size: 13px; color: var(--text); }
+    .parent-none {
+      padding: 8px 12px; background: var(--surface-2); border: 2px solid var(--border-light); border-radius: 7px;
+      cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all 0.15s;
+      text-align: center;
+    }
+    .parent-none:hover { border-color: var(--border-light); }
+    .parent-none.selected { border-color: var(--primary); background: var(--primary-glow); }
+
+    .confirm-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .confirm-row:last-child { border-bottom: none; }
+    .confirm-key { color: var(--text-muted); font-size: 12px; }
+    .confirm-val { color: var(--text); font-weight: 500; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<nav class="topnav">
+  <div class="topnav-left">
+    <a href="/projects" class="logo">Factory<span>-OS</span></a>
+    <div class="nav-sep"></div>
+    <div class="breadcrumb">
+      <a href="/projects">Projects</a>
+      <span class="breadcrumb-sep">/</span>
+      <a href="#" id="proj-link" onclick="goToApp()">…</a>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-current">Discovery</span>
+    </div>
+  </div>
+  <div class="topnav-right">
+    <button class="btn-primary btn-sm" id="btn-new-object">+ New Object</button>
+    <button class="btn-ghost btn-sm" id="btn-logout">Sign out</button>
+  </div>
+</nav>
+
+<!-- SUB-TABS -->
+<div class="subtabs">
+  <button class="subtab active" data-tab="objects">Objects</button>
+  <button class="subtab" data-tab="graph">Graph</button>
+  <button class="subtab" data-tab="architectures">Architectures</button>
+  <div class="subtabs-right" id="tab-actions"></div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- OBJECTS TAB -->
+  <div id="tab-objects" class="tab-view active">
+    <div class="objects-toolbar">
+      <button class="btn-primary btn-sm" id="btn-add-object">+ New Object</button>
+      <div class="toolbar-sep"></div>
+      <div class="toggle-group">
+        <button class="toggle-btn active" data-view="grid" onclick="setObjectView('grid')">Grid</button>
+        <button class="toggle-btn" data-view="cluster" onclick="setObjectView('cluster')">Group by Function</button>
+      </div>
+      <div class="toolbar-sep"></div>
+      <span style="font-size:12px;color:var(--text-muted)">Filter:</span>
+      <button class="filter-chip active" data-maturity="">All</button>
+      <button class="filter-chip" data-maturity="raw">Raw</button>
+      <button class="filter-chip" data-maturity="repeatable">Repeatable</button>
+      <button class="filter-chip" data-maturity="promotable">Promotable</button>
+      <button class="filter-chip" data-maturity="formal">Formal</button>
+    </div>
+    <div class="objects-content" id="objects-content">
+      <div class="empty-state">
+        <div class="empty-icon">🔬</div>
+        <div class="empty-title">No objects yet</div>
+        <div class="empty-sub">Add discovery objects to start building your solution space.</div>
+      </div>
+    </div>
+  </div>
+  <div class="ai-bar">
+    <div class="ai-bar-header" onclick="const b=document.getElementById('ai-bar-body'),l=document.getElementById('ai-bar-toggle-label');b.classList.toggle('open');l.textContent=b.classList.contains('open')?'▴ Collapse':'▾ Expand';">
+      <span class="ai-bar-icon">✦</span>
+      <span class="ai-bar-label">AI <span>Assist</span></span>
+      <span class="ai-bar-toggle" id="ai-bar-toggle-label">▾ Expand</span>
+    </div>
+    <div class="ai-bar-body" id="ai-bar-body">
+      <div class="ai-actions">
+        <button class="btn-ai" id="btn-ai-tags" onclick="runAI('tags')">✦ Suggest Tags</button>
+        <button class="btn-ai" id="btn-ai-arch" onclick="runAI('arch')">✦ Suggest Architecture</button>
+        <button class="btn-ai" id="btn-ai-next" onclick="runAI('next')">✦ What's Next?</button>
+      </div>
+      <div class="ai-result" id="ai-result" style="display:none">
+        <div class="ai-result-title" id="ai-result-title"></div>
+        <div class="ai-result-body" id="ai-result-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="filter-label">Type:</span>
+  <button class="filter-chip active" data-type="">All</button>
+  <button class="filter-chip" data-type="concept">Concept</button>
+  <button class="filter-chip" data-type="mechanism">Mechanism</button>
+  <button class="filter-chip" data-type="candidate_part">Part</button>
+  <button class="filter-chip" data-type="experiment">Experiment</button>
+  <button class="filter-chip" data-type="observation">Observation</button>
+  <button class="filter-chip" data-type="trade_study">Trade Study</button>
+  <div class="toolbar-sep"></div>
+  <span class="filter-label">Maturity:</span>
+  <button class="filter-chip active" data-maturity="">All</button>
+  <button class="filter-chip" data-maturity="raw">Raw</button>
+  <button class="filter-chip" data-maturity="repeatable">Repeatable</button>
+  <button class="filter-chip" data-maturity="promotable">Promotable</button>
+  <button class="filter-chip" data-maturity="formal">Formal</button>
+  <div class="toolbar-spacer"></div>
+  <input type="text" id="search-input" placeholder="Search objects…" oninput="renderObjects()">
+</div>
+
+<!-- MAIN GRID -->
+<div class="main" id="main-grid">
+  <div class="objects-grid" id="objects-grid">
+    <div class="empty-state">
+      <div class="empty-icon">🔬</div>
+      <div class="empty-title">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- GRAPH TAB -->
+<div id="tab-graph" style="flex:1;display:none;position:relative;min-height:0;overflow:hidden;background:var(--bg)">
+  <canvas id="graph-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;"></canvas>
+  <div id="graph-tooltip" style="display:none;position:absolute;pointer-events:none;z-index:10;background:#1a1a1a;border:1px solid #2e2e2e;border-radius:7px;padding:8px 12px;font-size:12px;color:#fff;white-space:nowrap;"></div>
+</div>
+
+<!-- ARCHITECTURES TAB -->
+<div id="tab-architectures" style="flex:1;display:none;overflow-y:auto;padding:20px;background:var(--bg)">
+  <div id="arch-empty" style="text-align:center;padding:60px 20px;color:#52525B;font-size:14px;line-height:2;">
+    <div style="font-size:36px;margin-bottom:12px;">⚡</div>
+    No architectures yet.<br>
+    Click <strong style="color:#fff">+ New Architecture</strong> above to propose a competing design approach.
+  </div>
+  <div id="arch-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;"></div>
+  <div id="compare-view" class="compare-view" style="margin-top:20px;"></div>
+</div>
+
+<!-- ═══════════════════════════════ MODALS ═══════════════════════════════ -->
+
+<!-- CREATE / EDIT OBJECT -->
+<div class="modal-backdrop" id="modal-object">
+  <div class="modal">
+    <div class="modal-title" id="modal-object-title">New Discovery Object</div>
+    <div class="form-group">
+      <label class="form-label">Title *</label>
+      <input class="form-input" id="obj-name" placeholder="e.g. Brushless Motor">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Type</label>
+      <select class="form-select" id="obj-type">
+        <option value="concept">Concept</option>
+        <option value="mechanism">Mechanism</option>
+        <option value="candidate_part">Candidate Part</option>
+        <option value="experiment">Experiment</option>
+        <option value="observation">Observation</option>
+        <option value="trade_study">Trade Study</option>
+        <option value="interface_hypothesis">Interface Hypothesis</option>
+        <option value="functional_chunk">Functional Chunk</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-textarea" id="obj-description" placeholder="Brief description…" rows="3"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Maturity</label>
+      <select class="form-select" id="obj-maturity">
+        <option value="raw">📄 Raw</option>
+        <option value="repeatable">🔁 Repeatable</option>
+        <option value="promotable">⬆️ Promotable</option>
+        <option value="formal">✅ Formal</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confidence</label>
+      <select class="form-select" id="obj-confidence">
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Functional Cluster</label>
+      <select class="form-select" id="obj-cluster">
+        <option value="">— None —</option>
+        <option value="Motion">Motion</option>
+        <option value="Energy">Energy</option>
+        <option value="Thermal">Thermal</option>
+        <option value="Structure">Structure</option>
+        <option value="Control">Control</option>
+        <option value="Sensing">Sensing</option>
+        <option value="Other">Other</option>
+        <option value="__custom__">Custom…</option>
+      </select>
+      <input class="form-input" id="obj-cluster-custom" placeholder="Custom cluster name" style="display:none;margin-top:6px">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-textarea" id="obj-notes" placeholder="Optional notes…" rows="2"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modal-object')">Cancel</button>
+      <button class="btn-primary" id="btn-save-object" onclick="saveObject()">Create Object</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROMOTE WIZARD -->
+<div class="modal-backdrop" id="modal-promote">
+  <div class="modal modal-wide">
+    <div class="modal-title">Promote to Design Tree</div>
+    <div class="modal-sub" id="promote-subtitle">Converting discovery object into a formal design node.</div>
+
+    <!-- Steps -->
+    <div class="wizard-steps">
+      <div class="wizard-step active" id="wiz-step-1">
+        <div class="wizard-step-num">1</div>
+        <span>Node Type</span>
+      </div>
+      <div class="wizard-step-arrow">›</div>
+      <div class="wizard-step" id="wiz-step-2">
+        <div class="wizard-step-num">2</div>
+        <span>Parent Node</span>
+      </div>
+      <div class="wizard-step-arrow">›</div>
+      <div class="wizard-step" id="wiz-step-3">
+        <div class="wizard-step-num">3</div>
+        <span>Confirm</span>
+      </div>
+    </div>
+
+    <!-- Step 1: Node type -->
+    <div id="wiz-page-1">
+      <div class="form-group">
+        <label class="form-label">Select node type for this object</label>
+        <div class="type-grid" id="type-grid"></div>
+      </div>
+    </div>
+
+    <!-- Step 2: Parent node -->
+    <div id="wiz-page-2" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Select parent node (optional)</label>
+        <div class="parent-list" id="parent-list"></div>
+      </div>
+    </div>
+
+    <!-- Step 3: Confirm -->
+    <div id="wiz-page-3" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Confirm promotion</label>
+        <div id="confirm-table"></div>
+      </div>
+      <div id="promote-warning" style="display:none;font-size:12px;color:var(--amber);padding:8px 10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;margin-top:4px">
+        ⚠ This object has <strong>low confidence</strong>. Consider validating before promoting.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modal-promote')">Cancel</button>
+      <button class="btn-ghost" id="wiz-back-btn" style="display:none" onclick="wizBack()">← Back</button>
+      <button class="btn-primary" id="wiz-next-btn" onclick="wizNext()" disabled>Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- OBJECT DETAIL MODAL -->
+<div class="modal-backdrop" id="modal-object-detail">
+  <div class="modal modal-wide">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div style="flex:1;min-width:0">
+        <div class="modal-title" id="detail-name"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px" id="detail-badges"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn-ghost btn-sm" onclick="editObjectFromDetail()">Edit</button>
+        <button class="btn-ghost btn-sm" onclick="closeModal('modal-object-detail');openPromoteWizard(state.detailObjectId, null)">Promote ↑</button>
+        <button class="btn-ghost btn-sm" style="color:#ef4444" onclick="deleteObjectFromDetail()">Delete</button>
+        <button class="btn-ghost btn-sm" onclick="closeModal('modal-object-detail')">✕</button>
+      </div>
+    </div>
+    <div id="detail-description" style="font-size:13px;color:var(--text-secondary);line-height:1.5"></div>
+    <div id="detail-notes-section">
+      <div class="form-label" style="margin-bottom:4px">Notes</div>
+      <div id="detail-notes" style="font-size:13px;color:var(--text-secondary);background:var(--surface-2);border-radius:6px;padding:10px;border:1px solid var(--border)"></div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="form-label">Relationships</div>
+        <button class="btn-ghost btn-sm" onclick="openAddRelationship()">+ Add</button>
+      </div>
+      <div id="detail-relationships" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD RELATIONSHIP MODAL -->
+<div class="modal-backdrop" id="modal-relationship">
+  <div class="modal">
+    <div class="modal-title">Add Relationship</div>
+    <div class="form-group">
+      <label class="form-label">Relationship Type</label>
+      <select class="form-select" id="rel-type">
+        <option value="interacts_with">Interacts With</option>
+        <option value="depends_on">Depends On</option>
+        <option value="supports">Supports</option>
+        <option value="conflicts_with">Conflicts With</option>
+        <option value="candidate_for">Candidate For</option>
+        <option value="derived_from">Derived From</option>
+        <option value="validated_by">Validated By</option>
+      </select>
+    </div>
+    <div class="form-group" style="position:relative">
+      <label class="form-label">Target Object</label>
+      <input class="form-input" id="rel-search" placeholder="Search objects…" oninput="searchRelObjects()" autocomplete="off">
+      <div id="rel-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border-light);border-radius:8px;z-index:50;overflow:hidden;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div id="rel-selected-obj" style="font-size:12px;color:var(--primary);min-height:16px"></div>
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <textarea class="form-textarea" id="rel-notes" placeholder="Optional context…" rows="2"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modal-relationship')">Cancel</button>
+      <button class="btn-primary" onclick="saveRelationship()">Add Relationship</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE / EDIT ARCHITECTURE MODAL -->
+<div class="modal-backdrop" id="modal-arch">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="modal-arch-title">New Architecture Proposal</div>
+    <div class="form-group">
+      <label class="form-label">Name *</label>
+      <input class="form-input" id="arch-name" placeholder="e.g. Direct Drive Architecture">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-textarea" id="arch-description" placeholder="High-level description of this architecture…" rows="3"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Pros</label>
+      <textarea class="form-textarea" id="arch-pros" placeholder="Key advantages…" rows="2"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cons</label>
+      <textarea class="form-textarea" id="arch-cons" placeholder="Known drawbacks…" rows="2"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Risks</label>
+      <textarea class="form-textarea" id="arch-risks" placeholder="Technical or schedule risks…" rows="2"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modal-arch')">Cancel</button>
+      <button class="btn-primary" id="btn-save-arch" onclick="saveArch()">Create Architecture</button>
+    </div>
+  </div>
+</div>
+
+<!-- TERMINATE ARCHITECTURE MODAL -->
+<div class="modal-backdrop" id="modal-kill-arch">
+  <div class="modal">
+    <div class="modal-title">Terminate Architecture</div>
+    <div class="modal-sub">Mark this architecture as no longer viable. This is reversible.</div>
+    <div class="form-group">
+      <label class="form-label">Reason (optional)</label>
+      <textarea class="form-textarea" id="kill-reason" placeholder="Why is this architecture being terminated?…" rows="3"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('modal-kill-arch')">Cancel</button>
+      <button class="btn-primary" onclick="confirmKillArch()">Terminate</button>
+    </div>
+  </div>
+</div>
+
+<!-- LINK OBJECTS TO ARCHITECTURE MODAL -->
+<div class="modal-backdrop" id="modal-arch-objects">
+  <div class="modal">
+    <div class="modal-title">Link Objects to Architecture</div>
+    <div class="modal-sub">Click an object to associate it with this architecture.</div>
+    <div id="link-obj-list" style="display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn-primary" onclick="closeModal('modal-arch-objects')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARE BAR (shown in compare mode) -->
+<div id="compare-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border-light);padding:12px 20px;z-index:100">
+  <span style="font-size:13px;color:var(--text-secondary)">Compare mode — select 2 architectures</span>
+  &nbsp;&nbsp;
+  <span id="compare-count" style="font-size:13px;font-weight:600;color:var(--primary)">0 selected</span>
+  &nbsp;&nbsp;
+  <button class="btn-primary btn-sm" id="btn-run-compare" onclick="runCompare()" disabled>Compare →</button>
+  &nbsp;
+  <button class="btn-ghost btn-sm" onclick="toggleCompareMode()">Exit</button>
+</div>
+
+<!-- OBJECT DETAIL / EDIT (inline via card click) -->
+<!-- Detail view handled by modal-object-detail above -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// BOOTSTRAP
+// ══════════════════════════════════════════════════════════════════════════
+const params    = new URLSearchParams(location.search);
+const projectId = params.get('project');
+const token     = localStorage.getItem('fos_token');
+
+if (!token) { location.href = '/login?next=' + encodeURIComponent(location.href); throw 0; }
+if (!projectId) { location.href = '/projects'; throw 0; }
+
+// ── State ──
+const state = {
+  objects:       [],
+  nodes:         [],        // for promotion wizard
+  typeFilter:    '',
+  maturityFilter:'',
+  editingId:     null,
+  promotingId:   null,
+  wizStep:       1,
+  wizNodeType:   null,
+  wizParentId:   null,
+  aiOpen:        false,
+  aiResult:      null,
+};
+
+// ── Label maps ──
+const TYPE_LABELS = {
+  concept:             'Concept',
+  mechanism:           'Mechanism',
+  candidate_part:      'Candidate Part',
+  experiment:          'Experiment',
+  observation:         'Observation',
+  trade_study:         'Trade Study',
+  interface_hypothesis:'Interface Hypothesis',
+  functional_chunk:    'Functional Chunk',
+};
+const TYPE_ICONS = {
+  concept: '💡', mechanism: '⚙️', candidate_part: '🔩', experiment: '🧪',
+  observation: '👁️', trade_study: '⚖️', interface_hypothesis: '🔌', functional_chunk: '📦',
+};
+const MATURITY_LABELS = { raw: 'Raw', repeatable: 'Repeatable', promotable: 'Promotable', formal: 'Formal' };
+const CONF_LABELS     = { low: 'low conf', medium: 'med conf', high: 'high conf' };
+
+// Node types available per object type
+const NODE_TYPE_MAP = {
+  concept:              [{ t:'SYS',    l:'System' },   { t:'SUBSYS', l:'Subsystem' }, { t:'ASSY', l:'Assembly' }],
+  mechanism:            [{ t:'SUBSYS', l:'Subsystem' },{ t:'ASSY',   l:'Assembly' },  { t:'SUBASSY', l:'Sub-Assembly' }],
+  candidate_part:       [{ t:'COMP',   l:'Component'}, { t:'PURCH',  l:'Purchased' }, { t:'SUBASSY', l:'Sub-Assembly' }],
+  experiment:           [{ t:'SUBSYS', l:'Subsystem' },{ t:'COMP',   l:'Component'}, { t:'ASSY', l:'Assembly' }],
+  observation:          [{ t:'COMP',   l:'Component'}, { t:'SUBASSY',l:'Sub-Assembly'}, { t:'ASSY', l:'Assembly' }],
+  trade_study:          [{ t:'SUBSYS', l:'Subsystem' },{ t:'ASSY',   l:'Assembly' },  { t:'SYS', l:'System' }],
+  interface_hypothesis: [{ t:'SUBSYS', l:'Subsystem' },{ t:'COMP',   l:'Component'}, { t:'ASSY', l:'Assembly' }],
+  functional_chunk:     [{ t:'ASSY',   l:'Assembly' }, { t:'SUBASSY',l:'Sub-Assembly'}, { t:'SUBSYS', l:'Subsystem' }],
+};
+const NODE_TYPE_SUBTITLES = {
+  SYS:'Top-level system', SUBSYS:'Subsystem', ASSY:'Assembly', SUBASSY:'Sub-assembly',
+  COMP:'Component', PURCH:'Purchased part',
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// API
+// ══════════════════════════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(opts.headers || {}),
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) throw new Error(data.message || `HTTP ${res.status}`);
+  return data;
+}
+
+const BASE = `/api/projects/${projectId}/discovery`;
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+document.getElementById('btn-logout').onclick = () => {
+  localStorage.removeItem('fos_token'); location.href = '/login';
+};
+
+function goToApp() {
+  location.href = `/app?project=${projectId}`;
+}
+
+document.getElementById('btn-new-object').onclick = () => openObjectModal(null);
+
+// ── Subtab switching ──────────────────────────────────────────────────────────
+document.querySelectorAll('.subtab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.subtab').forEach(b => b.classList.toggle('active', b === btn));
+
+    const toolbar    = document.querySelector('.toolbar');
+    const mainGrid   = document.getElementById('main-grid');
+    const tabGraph   = document.getElementById('tab-graph');
+    const tabArch    = document.getElementById('tab-architectures');
+    const newObjBtn  = document.getElementById('btn-new-object');
+
+    // Stop graph animation if leaving graph tab
+    const prevCanvas = document.getElementById('graph-canvas');
+    if (prevCanvas && prevCanvas._cleanup) prevCanvas._cleanup();
+
+    // Reset display
+    if (toolbar)   toolbar.style.display   = 'none';
+    if (mainGrid)  mainGrid.style.display  = 'none';
+    if (tabGraph)  tabGraph.style.display  = 'none';
+    if (tabArch)   tabArch.style.display   = 'none';
+    if (newObjBtn) newObjBtn.style.display = 'none';
+
+    if (tab === 'objects') {
+      if (toolbar)   toolbar.style.display   = '';
+      if (mainGrid)  mainGrid.style.display  = '';
+      if (newObjBtn) newObjBtn.style.display = '';
+    } else if (tab === 'graph') {
+      if (tabGraph) {
+        tabGraph.style.display = 'block';
+        // Give browser a frame to size the div before rendering canvas
+        requestAnimationFrame(() => initGraph());
+      }
+    } else if (tab === 'architectures') {
+      if (tabArch) tabArch.style.display = '';
+      loadArchitectures().then(() => renderArchitectures()).catch(() => {});
+    }
+
+    updateTabActions(tab);
+  });
+});
+
+// Filter chips — type
+document.querySelectorAll('[data-type]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    state.typeFilter = chip.dataset.type;
+    document.querySelectorAll('[data-type]').forEach(c => c.classList.toggle('active', c === chip));
+    renderObjects();
+  });
+});
+
+function updateTabActions(tab) {
+  const el = document.getElementById('tab-actions');
+  if (tab === 'objects') {
+    el.innerHTML = '';
+  } else if (tab === 'graph') {
+    el.innerHTML = `<button class="btn-ghost btn-sm" onclick="fitGraph()" title="Fit all nodes in view">⊡ Fit View</button><button class="btn-ghost btn-sm" onclick="loadGraph()" style="margin-left:4px">↺ Refresh</button>`;
+  } else if (tab === 'architectures') {
+    el.innerHTML = `
+      <button class="btn-ghost btn-sm" id="btn-compare-toggle" onclick="toggleCompareMode()">Compare</button>
+      <button class="btn-primary btn-sm" id="btn-add-arch" onclick="openAddArch()">+ New Architecture</button>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// API HELPERS
+// ══════════════════════════════════════════════════════════════════════════
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// OBJECTS
+// ══════════════════════════════════════════════════════════════════════════
+async function loadObjects() {
+  const data = await apiFetch(`/api/projects/${projectId}/discovery`);
+  state.objects = data.objects || [];
+}
+
+function setObjectView(view) {
+  state.objectView = view;
+  document.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  renderObjects();
+}
+
+// Filter chips
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    state.maturityFilter = chip.dataset.maturity;
+    document.querySelectorAll('[data-maturity]').forEach(c => c.classList.toggle('active', c === chip));
+    renderObjects();
+  });
+});
+
+function filteredObjects() {
+  if (!state.maturityFilter) return state.objects;
+  return state.objects.filter(o => o.maturity === state.maturityFilter);
+}
+
+const CLUSTER_COLORS = {
+  Motion: '#60a5fa', Energy: '#f59e0b', Thermal: '#fb923c',
+  Structure: '#a78bfa', Control: '#4ade80', Sensing: '#f0abfc',
+  Other: '#94a3b8', null: '#52525B', undefined: '#52525B',
+};
+const CLUSTER_ORDER = ['Motion', 'Energy', 'Thermal', 'Structure', 'Control', 'Sensing', 'Other'];
+
+function maturityLabel(m) {
+  return { raw: '📄 Raw', repeatable: '🔁 Repeatable', promotable: '⬆️ Promotable', formal: '✅ Formal' }[m] || m;
+}
+
+function renderObjects() {
+  const el = document.getElementById('objects-content');
+  const objs = filteredObjects();
+
+  if (!objs.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔬</div>
+      <div class="empty-title">${state.maturityFilter ? 'No objects with this maturity' : 'No objects yet'}</div>
+      <div class="empty-sub">Click "+ New Object" to get started.</div>
+    </div>`;
+    return;
+  }
+
+  if (state.objectView === 'cluster') {
+    renderClusteredView(el, objs);
+  } else {
+    el.innerHTML = `<div class="objects-grid" id="objects-grid"></div>`;
+    const grid = document.getElementById('objects-grid');
+    objs.forEach(o => grid.appendChild(makeObjectCard(o)));
+  }
+}
+
+function renderClusteredView(el, objs) {
+  const grouped = {};
+  objs.forEach(o => {
+    const key = o.functional_cluster || '__none__';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(o);
+  });
+
+  const order = [...CLUSTER_ORDER, ...Object.keys(grouped).filter(k => !CLUSTER_ORDER.includes(k) && k !== '__none__'), '__none__'];
+  el.innerHTML = '';
+
+  order.forEach(key => {
+    if (!grouped[key]) return;
+    const section = document.createElement('div');
+    section.className = 'cluster-section';
+    const color = CLUSTER_COLORS[key] || '#52525B';
+    const label = key === '__none__' ? 'Uncategorized' : key;
+    section.innerHTML = `
+      <div class="cluster-header">
+        <div class="cluster-dot" style="background:${color}"></div>
+        <span class="cluster-name">${label}</span>
+        <span class="cluster-count">${grouped[key].length} object${grouped[key].length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="objects-grid" id="cluster-grid-${encodeURIComponent(key)}"></div>
+    `;
+    el.appendChild(section);
+    const grid = document.getElementById(`cluster-grid-${encodeURIComponent(key)}`);
+    grouped[key].forEach(o => grid.appendChild(makeObjectCard(o)));
+  });
+}
+
+function makeObjectCard(obj) {
+  const card = document.createElement('div');
+  card.className = 'obj-card';
+  card.dataset.id = obj.id;
+
+  const relCount = (obj.relationships || []).length;
+  const clusterColor = CLUSTER_COLORS[obj.functional_cluster] || '#52525B';
+
+  card.innerHTML = `
+    <div class="obj-card-top">
+      <div class="obj-name">${esc(obj.title)}</div>
+      <div class="obj-type-badge">${esc(obj.object_type)}</div>
+    </div>
+    ${obj.description ? `<div class="obj-desc">${esc(obj.description.substring(0, 120))}${obj.description.length > 120 ? '…' : ''}</div>` : ''}
+    <div class="obj-meta">
+      <span class="maturity-badge maturity-${obj.maturity}">${maturityLabel(obj.maturity)}</span>
+      ${obj.confidence ? `<span class="maturity-badge confidence-${obj.confidence}" style="height:20px;padding:0 7px;font-size:11px">${obj.confidence}</span>` : ''}
+      ${obj.functional_cluster ? `<span class="cluster-badge" style="border-color:${clusterColor}40;color:${clusterColor}">${esc(obj.functional_cluster)}</span>` : ''}
+      ${relCount > 0 ? `<span class="rel-count">🔗 ${relCount}</span>` : ''}
+    </div>
+  `;
+  card.addEventListener('click', () => openObjectDetail(obj.id));
+  return card;
+}
+
+// Add object
+document.getElementById('btn-add-object').addEventListener('click', () => {
+  state.editingObjectId = null;
+  document.getElementById('modal-object-title').textContent = 'New Discovery Object';
+  document.getElementById('obj-name').value = '';
+  document.getElementById('obj-type').value = 'concept';
+  document.getElementById('obj-description').value = '';
+  document.getElementById('obj-maturity').value = 'raw';
+  document.getElementById('obj-confidence').value = 'low';
+  document.getElementById('obj-cluster').value = '';
+  document.getElementById('obj-cluster-custom').style.display = 'none';
+  document.getElementById('obj-notes').value = '';
+  document.getElementById('btn-save-object').textContent = 'Create Object';
+  openModal('modal-object');
+});
+
+document.getElementById('obj-cluster').addEventListener('change', function() {
+  document.getElementById('obj-cluster-custom').style.display = this.value === '__custom__' ? '' : 'none';
+});
+
+async function saveObject() {
+  const title = document.getElementById('obj-name').value.trim();
+  if (!title) return alert('Title is required');
+
+  let cluster = document.getElementById('obj-cluster').value;
+  if (cluster === '__custom__') cluster = document.getElementById('obj-cluster-custom').value.trim() || null;
+  if (cluster === '') cluster = null;
+
+  const payload = {
+    title,
+    object_type:      document.getElementById('obj-type').value,
+    description:      document.getElementById('obj-description').value.trim() || null,
+    maturity:         document.getElementById('obj-maturity').value,
+    confidence:       document.getElementById('obj-confidence').value,
+    functional_cluster: cluster,
+    notes:            document.getElementById('obj-notes').value.trim() || null,
+  };
+
+  try {
+    if (state.editingObjectId) {
+      await apiFetch(`/api/projects/${projectId}/discovery/${state.editingObjectId}`, { method: 'PUT', body: payload });
+    } else {
+      await apiFetch(`/api/projects/${projectId}/discovery`, { method: 'POST', body: payload });
+    }
+    closeModal('modal-object');
+    await loadObjects();
+    renderObjects();
+  } catch(e) { alert(e.message); }
+}
+
+// Object Detail
+function openObjectDetail(id) {
+  const obj = state.objects.find(o => o.id === id);
+  if (!obj) return;
+  state.detailObjectId = id;
+
+  document.getElementById('detail-name').textContent = obj.title;
+
+  const badges = document.getElementById('detail-badges');
+  badges.innerHTML = `
+    <span class="maturity-badge maturity-${obj.maturity}">${maturityLabel(obj.maturity)}</span>
+    ${obj.confidence ? `<span class="maturity-badge confidence-${obj.confidence}">${obj.confidence}</span>` : ''}
+    <span class="obj-type-badge">${esc(obj.object_type)}</span>
+    ${obj.functional_cluster ? `<span class="cluster-badge">${esc(obj.functional_cluster)}</span>` : ''}
+  `;
+
+  document.getElementById('detail-description').textContent = obj.description || '';
+
+  const notesSection = document.getElementById('detail-notes-section');
+  if (obj.notes) {
+    notesSection.style.display = '';
+    document.getElementById('detail-notes').textContent = obj.notes;
+  } else {
+    notesSection.style.display = 'none';
+  }
+
+  renderDetailRelationships(obj);
+  openModal('modal-object-detail');
+}
+
+function renderDetailRelationships(obj) {
+  const el = document.getElementById('detail-relationships');
+  const rels = obj.relationships || [];
+  if (!rels.length) {
+    el.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:6px 0">No relationships yet.</div>`;
+    return;
+  }
+  el.innerHTML = rels.map(r => {
+    const other = state.objects.find(o => o.id === r.target_id);
+    const otherName = other ? other.title : `Object #${r.target_id}`;
+    const dir = r.direction === 'outgoing' ? '→' : '←';
+    const colors = { interacts_with:'#60a5fa', depends_on:'#f59e0b', supports:'#4ade80', conflicts_with:'#ef4444', candidate_for:'#a78bfa', derived_from:'#fb923c', validated_by:'#f0abfc' };
+    const color = colors[r.relationship_type] || '#A1A1AA';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--surface-2);border-radius:6px;border:1px solid var(--border)">
+      <span style="font-size:12px;color:${color};font-family:'DM Mono',monospace">${dir} ${r.relationship_type.replace(/_/g,' ')}</span>
+      <span style="font-size:13px;color:var(--text);flex:1">${esc(otherName)}</span>
+      ${r.notes ? `<span style="font-size:11px;color:var(--text-muted)">${esc(r.notes)}</span>` : ''}
+      <button style="background:transparent;border:none;cursor:pointer;color:var(--text-muted);font-size:14px" onclick="deleteRelationship(${r.id})">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function deleteRelationship(relId) {
+  if (!confirm('Delete this relationship?')) return;
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/relationships/${relId}`, { method: 'DELETE' });
+    await loadObjects();
+    const obj = state.objects.find(o => o.id === state.detailObjectId);
+    if (obj) renderDetailRelationships(obj);
+    renderObjects();
+    renderGraph();
+  } catch(e) { alert(e.message); }
+}
+
+function editObjectFromDetail() {
+  const obj = state.objects.find(o => o.id === state.detailObjectId);
+  if (!obj) return;
+  state.editingObjectId = obj.id;
+  closeModal('modal-object-detail');
+  document.getElementById('modal-object-title').textContent = 'Edit Object';
+  document.getElementById('obj-name').value = obj.title;
+  document.getElementById('obj-type').value = obj.object_type;
+  document.getElementById('obj-description').value = obj.description || '';
+  document.getElementById('obj-maturity').value = obj.maturity;
+  document.getElementById('obj-confidence').value = obj.confidence || 'low';
+  const standardClusters = ['Motion','Energy','Thermal','Structure','Control','Sensing','Other',''];
+  if (obj.functional_cluster && !standardClusters.includes(obj.functional_cluster)) {
+    document.getElementById('obj-cluster').value = '__custom__';
+    document.getElementById('obj-cluster-custom').style.display = '';
+    document.getElementById('obj-cluster-custom').value = obj.functional_cluster;
+  } else {
+    document.getElementById('obj-cluster').value = obj.functional_cluster || '';
+    document.getElementById('obj-cluster-custom').style.display = 'none';
+  }
+  document.getElementById('obj-notes').value = obj.notes || '';
+  document.getElementById('btn-save-object').textContent = 'Save Changes';
+  openModal('modal-object');
+}
+
+async function deleteObjectFromDetail() {
+  if (!confirm('Delete this object? All its relationships will also be removed.')) return;
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/${state.detailObjectId}`, { method: 'DELETE' });
+    closeModal('modal-object-detail');
+    await loadObjects();
+    renderObjects();
+    renderGraph();
+  } catch(e) { alert(e.message); }
+}
+
+// Add Relationship
+function openAddRelationship() {
+  state.relTargetId = null;
+  state.relSearchResults = [];
+  document.getElementById('rel-search').value = '';
+  document.getElementById('rel-search-results').style.display = 'none';
+  document.getElementById('rel-search-results').innerHTML = '';
+  document.getElementById('rel-notes').value = '';
+  document.getElementById('rel-selected-obj').textContent = '';
+  closeModal('modal-object-detail');
+  openModal('modal-relationship');
+}
+
+function searchRelObjects() {
+  const q = document.getElementById('rel-search').value.trim().toLowerCase();
+  const results = document.getElementById('rel-search-results');
+  if (!q) { results.style.display = 'none'; return; }
+
+  const matches = state.objects.filter(o =>
+    o.id !== state.detailObjectId && o.title.toLowerCase().includes(q)
+  ).slice(0, 8);
+
+  results.style.display = matches.length ? '' : 'none';
+  results.innerHTML = matches.map(o => `
+    <div class="rel-result-item ${o.id === state.relTargetId ? 'selected' : ''}" onclick="selectRelTarget(${o.id}, '${esc(o.title)}')">
+      <span class="obj-type-badge" style="font-size:10px">${esc(o.object_type)}</span>
+      <span>${esc(o.title)}</span>
+    </div>
+  `).join('');
+}
+
+function selectRelTarget(id, name) {
+  state.relTargetId = id;
+  document.getElementById('rel-selected-obj').textContent = `Selected: ${name}`;
+  document.getElementById('rel-search').value = name;
+  document.getElementById('rel-search-results').style.display = 'none';
+}
+
+async function saveRelationship() {
+  if (!state.relTargetId) return alert('Please select a target object');
+  const relType = document.getElementById('rel-type').value;
+  const notes   = document.getElementById('rel-notes').value.trim();
+
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/relationships`, {
+      method: 'POST',
+      body: { source_object_id: state.detailObjectId, target_object_id: state.relTargetId, relationship_type: relType, notes: notes || null },
+    });
+    closeModal('modal-relationship');
+    await loadObjects();
+    const obj = state.objects.find(o => o.id === state.detailObjectId);
+    if (obj) {
+      renderDetailRelationships(obj);
+      openModal('modal-object-detail');
+      // refresh detail
+      openObjectDetail(state.detailObjectId);
+    }
+    renderObjects();
+    renderGraph();
+  } catch(e) { alert(e.message); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// GRAPH
+// ══════════════════════════════════════════════════════════════════════════
+let graphSim = null;
+const _graphCtl = {};  // control handle set by renderGraph() for external access
+
+function fitGraph() {
+  if (_graphCtl.fit) _graphCtl.fit();
+}
+
+async function loadGraph() {
+  const data = await apiFetch(`/api/projects/${projectId}/discovery/graph`);
+  state.graphNodes = data.nodes || [];
+  state.graphEdges = data.edges || [];
+  renderGraph();
+}
+
+function initGraph() {
+  if (!state.graphNodes.length) loadGraph();
+  else renderGraph();
+}
+
+const REL_COLORS = {
+  interacts_with: '#60a5fa', depends_on: '#f59e0b', supports: '#4ade80',
+  conflicts_with: '#ef4444', candidate_for: '#a78bfa', derived_from: '#fb923c',
+  validated_by: '#f0abfc',
+};
+const MATURITY_COLORS = {
+  raw: '#52525B', repeatable: '#f59e0b', promotable: '#60a5fa', formal: '#00AE68',
+};
+
+function renderGraph() {
+  const canvas = document.getElementById('graph-canvas');
+  if (!canvas) return;
+
+  const container = document.getElementById('tab-graph');
+  canvas.width  = container.clientWidth;
+  canvas.height = container.clientHeight;
+
+  if (!state.graphNodes.length) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#A1A1AA';
+    ctx.font = '14px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText('No objects in project', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
+  // Init positions if needed
+  const W = canvas.width, H = canvas.height;
+  const nodes = state.graphNodes.map((n, i) => ({
+    ...n,
+    x: n._x !== undefined ? n._x : W/2 + (Math.cos(2*Math.PI*i/state.graphNodes.length) * Math.min(W,H)*0.3),
+    y: n._y !== undefined ? n._y : H/2 + (Math.sin(2*Math.PI*i/state.graphNodes.length) * Math.min(W,H)*0.3),
+    vx: 0, vy: 0,
+  }));
+
+  // Sync back
+  const nodeMap = {};
+  nodes.forEach(n => { nodeMap[n.id] = n; });
+
+  // Force simulation
+  if (graphSim) clearInterval(graphSim);
+
+  let zoom = 1, panX = 0, panY = 0;
+  let dragging = null, lastMouse = null, dragOffset = {x:0,y:0};
+  let animFrame;
+
+  // Expose fit-view capability via closure (captures local zoom/panX/panY/nodes)
+  _graphCtl.fit = function() {
+    if (!nodes.length) return;
+    const pad = 60;
+    const xs = nodes.map(n => n.x);
+    const ys = nodes.map(n => n.y);
+    const minX = Math.min(...xs) - 20;
+    const maxX = Math.max(...xs) + 20;
+    const minY = Math.min(...ys) - 20;
+    const maxY = Math.max(...ys) + 20;
+    const contentW = maxX - minX || 1;
+    const contentH = maxY - minY || 1;
+    zoom = Math.min((W - pad * 2) / contentW, (H - pad * 2) / contentH, 2.5);
+    zoom = Math.max(zoom, 0.1);
+    panX = (W - (maxX + minX) * zoom) / 2;
+    panY = (H - (maxY + minY) * zoom) / 2;
+    simCount = 0;
+  };
+
+  function toCanvas(x, y) {
+    return { x: x * zoom + panX, y: y * zoom + panY };
+  }
+  function fromCanvas(cx, cy) {
+    return { x: (cx - panX) / zoom, y: (cy - panY) / zoom };
+  }
+
+  function tick() {
+    // Force-directed simulation
+    const k = 80, repulse = 3000, damp = 0.85;
+
+    nodes.forEach(a => {
+      nodes.forEach(b => {
+        if (a.id === b.id) return;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+        const force = repulse / (dist * dist);
+        a.vx -= (dx/dist) * force;
+        a.vy -= (dy/dist) * force;
+      });
+
+      // Center gravity
+      a.vx += (W/2 - a.x - panX) * 0.001;
+      a.vy += (H/2 - a.y - panY) * 0.001;
+    });
+
+    state.graphEdges.forEach(e => {
+      const src = nodeMap[e.source_object_id];
+      const tgt = nodeMap[e.target_object_id];
+      if (!src || !tgt) return;
+      const dx = tgt.x - src.x, dy = tgt.y - src.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 0.001;
+      const force = (dist - k*2) * 0.015;
+      const fx = dx/dist * force, fy = dy/dist * force;
+      src.vx += fx; src.vy += fy;
+      tgt.vx -= fx; tgt.vy -= fy;
+    });
+
+    nodes.forEach(n => {
+      if (dragging && dragging.id === n.id) return;
+      n.vx *= damp; n.vy *= damp;
+      n.x += n.vx; n.y += n.vy;
+    });
+  }
+
+  function draw() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(zoom, zoom);
+
+    // Draw edges
+    state.graphEdges.forEach(e => {
+      const src = nodeMap[e.source_object_id];
+      const tgt = nodeMap[e.target_object_id];
+      if (!src || !tgt) return;
+      const color = REL_COLORS[e.relationship_type] || '#A1A1AA';
+
+      ctx.beginPath();
+      ctx.strokeStyle = color + '90';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.stroke();
+
+      // Arrow
+      const angle = Math.atan2(tgt.y - src.y, tgt.x - src.x);
+      const r = 14;
+      const ax = tgt.x - Math.cos(angle) * r;
+      const ay = tgt.y - Math.sin(angle) * r;
+      ctx.beginPath();
+      ctx.fillStyle = color + 'CC';
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - 8*Math.cos(angle-0.4), ay - 8*Math.sin(angle-0.4));
+      ctx.lineTo(ax - 8*Math.cos(angle+0.4), ay - 8*Math.sin(angle+0.4));
+      ctx.closePath();
+      ctx.fill();
+
+      // Label at midpoint
+      const mx = (src.x + tgt.x) / 2, my = (src.y + tgt.y) / 2;
+      ctx.font = '9px DM Mono';
+      ctx.fillStyle = color + 'BB';
+      ctx.textAlign = 'center';
+      ctx.fillText(e.relationship_type.replace(/_/g,' '), mx, my - 4);
+    });
+
+    // Draw nodes
+    nodes.forEach(n => {
+      const radius = 14;
+      const matColor = MATURITY_COLORS[n.maturity] || '#52525B';
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = matColor + '30';
+      ctx.fill();
+      ctx.strokeStyle = matColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Node label
+      ctx.font = '11px DM Sans';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      const label = n.title.length > 14 ? n.title.substring(0,13)+'…' : n.title;
+      ctx.fillText(label, n.x, n.y + radius + 12);
+    });
+
+    ctx.restore();
+  }
+
+  let simCount = 0;
+  function loop() {
+    if (simCount < 200) { tick(); simCount++; }
+    draw();
+    animFrame = requestAnimationFrame(loop);
+  }
+  if (animFrame) cancelAnimationFrame(animFrame);
+  loop();
+
+  // ── Mouse events ──
+  function getNodeAtPoint(cx, cy) {
+    const world = fromCanvas(cx, cy);
+    return nodes.find(n => {
+      const dx = n.x - world.x, dy = n.y - world.y;
+      return Math.sqrt(dx*dx+dy*dy) < 16;
+    });
+  }
+
+  canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const node = getNodeAtPoint(cx, cy);
+    if (node) {
+      dragging = node;
+      const world = fromCanvas(cx, cy);
+      dragOffset = { x: node.x - world.x, y: node.y - world.y };
+      simCount = 0; // re-run sim when released
+    } else {
+      lastMouse = { x: cx, y: cy };
+    }
+  };
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const tooltip = document.getElementById('graph-tooltip');
+
+    if (dragging) {
+      const world = fromCanvas(cx, cy);
+      dragging.x = world.x + dragOffset.x;
+      dragging.y = world.y + dragOffset.y;
+    } else if (lastMouse) {
+      panX += cx - lastMouse.x;
+      panY += cy - lastMouse.y;
+      lastMouse = { x: cx, y: cy };
+    } else {
+      const node = getNodeAtPoint(cx, cy);
+      if (node) {
+        canvas.style.cursor = 'pointer';
+        tooltip.style.display = 'block';
+        tooltip.style.left = (cx + 12) + 'px';
+        tooltip.style.top  = (cy + 12) + 'px';
+        tooltip.innerHTML = `<strong>${esc(node.title)}</strong><br><span style="color:var(--text-muted)">${node.object_type} · ${node.maturity}</span>`;
+      } else {
+        canvas.style.cursor = '';
+        tooltip.style.display = 'none';
+      }
+    }
+  };
+
+  canvas.onmouseup = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    if (dragging) {
+      simCount = 0;
+      dragging = null;
+    } else if (lastMouse && Math.abs(cx - lastMouse.x) < 4 && Math.abs(cy - lastMouse.y) < 4) {
+      // click
+      const node = getNodeAtPoint(cx, cy);
+      if (node) openObjectDetail(node.id);
+    }
+    lastMouse = null;
+  };
+
+  canvas.onwheel = (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const delta = e.deltaY < 0 ? 1.1 : 0.9;
+    panX = cx + (panX - cx) * delta;
+    panY = cy + (panY - cy) * delta;
+    zoom *= delta;
+    simCount = 0;
+  };
+
+  // Cleanup on tab switch
+  canvas._cleanup = () => { if (animFrame) cancelAnimationFrame(animFrame); };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ARCHITECTURES
+// ══════════════════════════════════════════════════════════════════════════
+async function loadArchitectures() {
+  const data = await apiFetch(`/api/projects/${projectId}/discovery/architectures`);
+  state.architectures = data.architectures || [];
+}
+
+function renderArchitectures() {
+  const grid = document.getElementById('arch-grid');
+  const empty = document.getElementById('arch-empty');
+  grid.innerHTML = '';
+
+  if (!state.architectures.length) {
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  state.architectures.forEach(arch => {
+    const card = makeArchCard(arch);
+    grid.appendChild(card);
+  });
+}
+
+function makeArchCard(arch) {
+  const card = document.createElement('div');
+  card.className = `arch-card status-${arch.status}`;
+  card.dataset.archId = arch.id;
+
+  const objChips = (arch.objects || []).map(o => `
+    <span class="arch-obj-chip">
+      ${esc(o.title)}
+      <span class="remove-chip" onclick="unlinkObjFromArch(${arch.id}, ${o.id}, event)">×</span>
+    </span>
+  `).join('');
+
+  card.innerHTML = `
+    <div class="arch-card-header">
+      <div class="arch-name">${esc(arch.name)}</div>
+      <span class="arch-status-badge status-${arch.status}">${arch.status}</span>
+    </div>
+    <div class="arch-body">
+      ${arch.description ? `<div><div class="arch-section-label">Description</div><div class="arch-text">${esc(arch.description)}</div></div>` : ''}
+      ${arch.pros  ? `<div><div class="arch-section-label">Pros</div><div class="arch-text arch-pro">${esc(arch.pros)}</div></div>` : ''}
+      ${arch.cons  ? `<div><div class="arch-section-label">Cons</div><div class="arch-text arch-con">${esc(arch.cons)}</div></div>` : ''}
+      ${arch.risks ? `<div><div class="arch-section-label">Risks</div><div class="arch-text arch-risk">${esc(arch.risks)}</div></div>` : ''}
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="arch-section-label">Linked Objects</div>
+          <button class="btn-ghost btn-sm" style="height:22px;font-size:11px" onclick="openLinkObjects(${arch.id}, event)">+ Link</button>
+        </div>
+        <div class="arch-objects">
+          ${objChips || '<span style="font-size:12px;color:var(--text-muted)">No objects linked</span>'}
+        </div>
+      </div>
+    </div>
+    <div class="arch-footer">
+      ${arch.status !== 'selected' ? `<button class="btn-ghost btn-sm" onclick="selectArch(${arch.id})">✓ Select</button>` : ''}
+      ${arch.status === 'active' ? `<button class="btn-danger btn-sm" onclick="openKillArch(${arch.id})">Kill</button>` : ''}
+      ${arch.status === 'killed' ? `<span style="font-size:12px;color:var(--text-muted)">${arch.kill_reason ? 'Killed: '+esc(arch.kill_reason.substring(0,60)) : 'Killed'}</span>` : ''}
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn-ghost btn-sm" onclick="openEditArch(${arch.id})">Edit</button>
+        <button class="btn-ghost btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="deleteArch(${arch.id})">Delete</button>
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+function openAddArch() {
+  state.editingArchId = null;
+  document.getElementById('modal-arch-title').textContent = 'New Architecture Proposal';
+  ['arch-name','arch-description','arch-pros','arch-cons','arch-risks'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('btn-save-arch').textContent = 'Create Architecture';
+  openModal('modal-arch');
+}
+
+function openEditArch(id) {
+  const arch = state.architectures.find(a => a.id === id);
+  if (!arch) return;
+  state.editingArchId = id;
+  document.getElementById('modal-arch-title').textContent = 'Edit Architecture';
+  document.getElementById('arch-name').value        = arch.name;
+  document.getElementById('arch-description').value = arch.description || '';
+  document.getElementById('arch-pros').value         = arch.pros || '';
+  document.getElementById('arch-cons').value         = arch.cons || '';
+  document.getElementById('arch-risks').value        = arch.risks || '';
+  document.getElementById('btn-save-arch').textContent = 'Save Changes';
+  openModal('modal-arch');
+}
+
+async function saveArch() {
+  const name = document.getElementById('arch-name').value.trim();
+  if (!name) return alert('Name is required');
+
+  const payload = {
+    name,
+    description: document.getElementById('arch-description').value.trim() || null,
+    pros:        document.getElementById('arch-pros').value.trim() || null,
+    cons:        document.getElementById('arch-cons').value.trim() || null,
+    risks:       document.getElementById('arch-risks').value.trim() || null,
+  };
+
+  try {
+    if (state.editingArchId) {
+      await apiFetch(`/api/projects/${projectId}/discovery/architectures/${state.editingArchId}`, { method: 'PUT', body: payload });
+    } else {
+      await apiFetch(`/api/projects/${projectId}/discovery/architectures`, { method: 'POST', body: payload });
+    }
+    closeModal('modal-arch');
+    await loadArchitectures();
+    renderArchitectures();
+  } catch(e) { alert(e.message); }
+}
+
+async function selectArch(id) {
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/architectures/${id}`, { method: 'PUT', body: { status: 'selected' } });
+    await loadArchitectures();
+    renderArchitectures();
+  } catch(e) { alert(e.message); }
+}
+
+function openKillArch(id) {
+  state.killingArchId = id;
+  document.getElementById('kill-reason').value = '';
+  openModal('modal-kill-arch');
+}
+
+async function confirmKillArch() {
+  const reason = document.getElementById('kill-reason').value.trim();
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/architectures/${state.killingArchId}`, {
+      method: 'PUT', body: { status: 'killed', kill_reason: reason || null },
+    });
+    closeModal('modal-kill-arch');
+    await loadArchitectures();
+    renderArchitectures();
+  } catch(e) { alert(e.message); }
+}
+
+async function deleteArch(id) {
+  if (!confirm('Delete this architecture? This cannot be undone.')) return;
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/architectures/${id}`, { method: 'DELETE' });
+    await loadArchitectures();
+    renderArchitectures();
+  } catch(e) { alert(e.message); }
+}
+
+// Link objects to architecture
+function openLinkObjects(archId, e) {
+  e.stopPropagation();
+  state.linkingArchId = archId;
+  const arch = state.architectures.find(a => a.id === archId);
+  const linkedIds = new Set((arch.objects || []).map(o => o.id));
+
+  const list = document.getElementById('link-obj-list');
+  list.innerHTML = state.objects.length
+    ? state.objects.map(o => `
+        <div class="link-obj-item ${linkedIds.has(o.id) ? 'linked' : ''}" onclick="${linkedIds.has(o.id) ? '' : `linkObjToArch(${o.id})`}">
+          <span class="maturity-badge maturity-${o.maturity}" style="height:18px;font-size:10px">${o.maturity}</span>
+          <span>${esc(o.title)}</span>
+          ${linkedIds.has(o.id) ? '<span style="margin-left:auto;font-size:11px;color:var(--text-muted)">linked</span>' : ''}
+        </div>
+      `).join('')
+    : '<div style="padding:12px;color:var(--text-muted);font-size:13px">No objects in this project.</div>';
+
+  openModal('modal-arch-objects');
+}
+
+async function linkObjToArch(objId) {
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/architectures/${state.linkingArchId}/objects`, { method: 'POST', body: { object_id: objId } });
+    await loadArchitectures();
+    renderArchitectures();
+    // Refresh the modal
+    openLinkObjects(state.linkingArchId, { stopPropagation: () => {} });
+  } catch(e) { if (!e.message.includes('already linked')) alert(e.message); }
+}
+
+async function unlinkObjFromArch(archId, objId, e) {
+  e.stopPropagation();
+  try {
+    await apiFetch(`/api/projects/${projectId}/discovery/architectures/${archId}/objects/${objId}`, { method: 'DELETE' });
+    await loadArchitectures();
+    renderArchitectures();
+  } catch(e) { alert(e.message); }
+}
+
+// Compare mode
+function toggleCompareMode() {
+  state.compareMode = !state.compareMode;
+  state.compareIds = [];
+  document.getElementById('compare-bar').style.display = state.compareMode ? '' : 'none';
+  const compareView = document.getElementById('compare-view');
+  compareView.innerHTML = '';
+  compareView.classList.toggle('open', false);
+
+  const btn = document.getElementById('btn-compare-toggle');
+  if (btn) btn.textContent = state.compareMode ? 'Exit Compare' : 'Compare';
+
+  if (state.compareMode) {
+    // Add checkboxes to arch cards
+    document.querySelectorAll('.arch-card').forEach(card => {
+      const archId = parseInt(card.dataset.archId);
+      const check = document.createElement('input');
+      check.type = 'checkbox'; check.className = 'compare-check';
+      check.style.cssText = 'position:absolute;top:12px;right:12px;width:16px;height:16px;cursor:pointer;accent-color:var(--primary)';
+      check.addEventListener('change', () => toggleCompareSelect(archId, check.checked));
+      card.style.position = 'relative';
+      card.querySelector('.arch-card-header').appendChild(check);
+    });
+  } else {
+    document.querySelectorAll('.compare-check').forEach(c => c.remove());
+  }
+}
+
+function toggleCompareSelect(archId, selected) {
+  if (selected) {
+    if (state.compareIds.length >= 3) {
+      alert('Max 3 architectures for compare');
+      return;
+    }
+    state.compareIds.push(archId);
+  } else {
+    state.compareIds = state.compareIds.filter(id => id !== archId);
+  }
+  renderCompareView();
+}
+
+function renderCompareView() {
+  const el = document.getElementById('compare-view');
+  if (state.compareIds.length < 2) {
+    el.classList.remove('open');
+    return;
+  }
+  el.classList.add('open');
+  el.innerHTML = state.compareIds.map(id => {
+    const arch = state.architectures.find(a => a.id === id);
+    if (!arch) return '';
+    return `<div class="compare-col">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--text)">${esc(arch.name)}</div>
+      ${arch.description ? `<div style="margin-bottom:8px"><div class="arch-section-label">Description</div><div class="arch-text">${esc(arch.description)}</div></div>` : ''}
+      ${arch.pros  ? `<div style="margin-bottom:8px"><div class="arch-section-label">Pros</div><div class="arch-text arch-pro">${esc(arch.pros)}</div></div>`  : ''}
+      ${arch.cons  ? `<div style="margin-bottom:8px"><div class="arch-section-label">Cons</div><div class="arch-text arch-con">${esc(arch.cons)}</div></div>`  : ''}
+      ${arch.risks ? `<div style="margin-bottom:8px"><div class="arch-section-label">Risks</div><div class="arch-text arch-risk">${esc(arch.risks)}</div></div>` : ''}
+      <div><div class="arch-section-label">Objects</div><div class="arch-objects">${(arch.objects||[]).map(o=>`<span class="arch-obj-chip">${esc(o.title)}</span>`).join('')||'<span style="font-size:12px;color:var(--text-muted)">None</span>'}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function exitCompare() {
+  state.compareMode = false;
+  toggleCompareMode();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL UTILS
+// ══════════════════════════════════════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-backdrop').forEach(b => {
+  b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
+});
+
+async function init() {
+  try {
+    const proj = await api(`/api/projects/${projectId}`);
+    const name = proj.project?.name || proj.name || `Project ${projectId}`;
+    document.title = `Discovery — ${name}`;
+    const link = document.getElementById('proj-link');
+    link.textContent = name;
+  } catch(e) {}
+  await loadObjects();
+  renderObjects();
+}
+init();
+
+// ══════════════════════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════════════════════
+async function loadObjects() {
+  try {
+    const data = await api(BASE);
+    state.objects = data.objects || [];
+  } catch(e) {
+    console.error('loadObjects:', e.message);
+    state.objects = [];
+  }
+}
+
+async function loadNodes() {
+  try {
+    const data = await api(`${BASE}/nodes-for-promotion`);
+    state.nodes = data.nodes || [];
+  } catch(e) {
+    state.nodes = [];
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════════════════
+function filteredObjects() {
+  const q = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+  return state.objects.filter(o => {
+    if (state.typeFilter    && o.type     !== state.typeFilter)     return false;
+    if (state.maturityFilter && o.maturity !== state.maturityFilter) return false;
+    if (q && !o.title.toLowerCase().includes(q) && !(o.description || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderObjects() {
+  const grid = document.getElementById('objects-grid');
+  const objs = filteredObjects();
+  grid.innerHTML = '';
+
+  if (!objs.length) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔬</div>
+      <div class="empty-title">${state.objects.length === 0 ? 'No objects yet' : 'No matches'}</div>
+      <div class="empty-sub">${state.objects.length === 0 ? 'Click "+ New Object" to start capturing ideas, mechanisms, and candidate parts.' : 'Try adjusting your filters.'}</div>
+    </div>`;
+    return;
+  }
+
+  objs.forEach(obj => {
+    const card = makeCard(obj);
+    grid.appendChild(card);
+  });
+}
+
+function makeCard(obj) {
+  const card = document.createElement('div');
+  card.className = 'obj-card' + (obj.promoted_node_id ? ' promoted' : '');
+  card.dataset.id = obj.id;
+
+  const tags = (Array.isArray(obj.tags) ? obj.tags : []);
+  const tagChips = tags.slice(0, 4).map(t => {
+    const color = tagColor(t);
+    return `<span class="tag-chip" style="background:${color}20;border:1px solid ${color}40;color:${color}">${esc(t)}</span>`;
+  }).join('');
+
+  const canPromote = (obj.maturity === 'promotable' || obj.maturity === 'formal') && !obj.promoted_node_id;
+
+  card.innerHTML = `
+    <div class="obj-card-header">
+      <div class="obj-title">${esc(obj.title)}</div>
+      <div class="obj-type-badge">${esc(TYPE_ICONS[obj.type] || '')} ${esc(TYPE_LABELS[obj.type] || obj.type)}</div>
+    </div>
+    ${obj.description ? `<div class="obj-desc">${esc(obj.description.slice(0, 100))}${obj.description.length > 100 ? '…' : ''}</div>` : ''}
+    ${tags.length ? `<div class="obj-tags">${tagChips}</div>` : ''}
+    <div class="obj-meta">
+      <span class="maturity-badge mat-${obj.maturity}">${MATURITY_LABELS[obj.maturity] || obj.maturity}</span>
+      <span class="conf-badge conf-${obj.confidence}">${CONF_LABELS[obj.confidence] || obj.confidence}</span>
+      ${obj.promoted_node_id ? `<span class="promoted-badge">✓ Promoted</span>` : ''}
+      ${canPromote ? `<button class="promote-btn" onclick="openPromoteWizard(${obj.id}, event)">Promote →</button>` : ''}
+    </div>
+  `;
+
+  card.addEventListener('click', e => {
+    if (e.target.classList.contains('promote-btn')) return;
+    openObjectModal(obj);
+  });
+  return card;
+}
+
+function tagColor(tag) {
+  const colors = ['#60a5fa','#a78bfa','#f59e0b','#4ade80','#f0abfc','#fb923c','#34d399','#e879f9'];
+  let h = 0;
+  for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) & 0xffff;
+  return colors[h % colors.length];
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// OBJECT MODAL (create / edit)
+// ══════════════════════════════════════════════════════════════════════════
+function openObjectModal(obj) {
+  state.editingId = obj ? obj.id : null;
+  const titleEl = document.getElementById('modal-object-title');
+  const btnEl   = document.getElementById('btn-save-object');
+
+  if (obj) {
+    titleEl.textContent = 'Edit Object';
+    btnEl.textContent   = 'Save Changes';
+    document.getElementById('obj-title').value       = obj.title || '';
+    document.getElementById('obj-type').value        = obj.type || 'concept';
+    document.getElementById('obj-maturity').value    = obj.maturity || 'raw';
+    document.getElementById('obj-confidence').value  = obj.confidence || 'low';
+    document.getElementById('obj-description').value = obj.description || '';
+    document.getElementById('obj-tags').value        = (Array.isArray(obj.tags) ? obj.tags : []).join(', ');
+  } else {
+    titleEl.textContent = 'New Discovery Object';
+    btnEl.textContent   = 'Create Object';
+    document.getElementById('obj-title').value       = '';
+    document.getElementById('obj-type').value        = 'concept';
+    document.getElementById('obj-maturity').value    = 'raw';
+    document.getElementById('obj-confidence').value  = 'low';
+    document.getElementById('obj-description').value = '';
+    document.getElementById('obj-tags').value        = '';
+  }
+
+  openModal('modal-object');
+}
+
+async function saveObject() {
+  const title = document.getElementById('obj-title').value.trim();
+  if (!title) { alert('Title is required'); return; }
+
+  const rawTags = document.getElementById('obj-tags').value.trim();
+  const tags = rawTags ? rawTags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+  const payload = {
+    title,
+    type:        document.getElementById('obj-type').value,
+    maturity:    document.getElementById('obj-maturity').value,
+    confidence:  document.getElementById('obj-confidence').value,
+    description: document.getElementById('obj-description').value.trim() || null,
+    tags,
+  };
+
+  const btn = document.getElementById('btn-save-object');
+  btn.disabled = true;
+  try {
+    if (state.editingId) {
+      await api(`${BASE}/${state.editingId}`, { method: 'PUT', body: payload });
+    } else {
+      await api(BASE, { method: 'POST', body: payload });
+    }
+    closeModal('modal-object');
+    await loadObjects();
+    renderObjects();
+  } catch(e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PROMOTE WIZARD
+// ══════════════════════════════════════════════════════════════════════════
+async function openPromoteWizard(objId, event) {
+  if (event) event.stopPropagation();
+  const obj = state.objects.find(o => o.id === objId);
+  if (!obj) return;
+
+  state.promotingId  = objId;
+  state.wizStep      = 1;
+  state.wizNodeType  = null;
+  state.wizParentId  = '__root__';   // default: no parent (top-level)
+
+  document.getElementById('promote-subtitle').textContent = `Promoting: "${obj.title}"`;
+
+  // Load nodes for parent selection
+  await loadNodes();
+
+  // Render step 1
+  const types = NODE_TYPE_MAP[obj.type] || NODE_TYPE_MAP['concept'];
+  const grid = document.getElementById('type-grid');
+  grid.innerHTML = types.map(t => `
+    <div class="type-option" data-ntype="${t.t}" onclick="selectNodeType('${t.t}', this)">
+      <div style="font-size:20px">${nodeTypeIcon(t.t)}</div>
+      <div class="type-option-label">${t.l}</div>
+      <div class="type-option-sub">${NODE_TYPE_SUBTITLES[t.t] || ''}</div>
+    </div>
+  `).join('');
+
+  wizSetPage(1);
+  openModal('modal-promote');
+}
+
+function selectNodeType(ntype, el) {
+  state.wizNodeType = ntype;
+  document.querySelectorAll('.type-option').forEach(e => e.classList.toggle('selected', e === el));
+  document.getElementById('wiz-next-btn').disabled = false;
+}
+
+function wizSetPage(page) {
+  state.wizStep = page;
+  [1,2,3].forEach(p => {
+    const pageEl = document.getElementById(`wiz-page-${p}`);
+    const stepEl = document.getElementById(`wiz-step-${p}`);
+    if (pageEl) pageEl.style.display = p === page ? '' : 'none';
+    if (stepEl) {
+      stepEl.classList.toggle('active', p === page);
+      stepEl.classList.toggle('done', p < page);
+    }
+  });
+
+  document.getElementById('wiz-back-btn').style.display = page > 1 ? '' : 'none';
+
+  const nextBtn = document.getElementById('wiz-next-btn');
+  if (page === 3) {
+    nextBtn.textContent = '✓ Promote';
+    nextBtn.disabled = false;
+  } else {
+    nextBtn.textContent = 'Next →';
+    nextBtn.disabled = page === 1 && !state.wizNodeType;
+  }
+}
+
+function wizNext() {
+  if (state.wizStep === 1) {
+    if (!state.wizNodeType) return;
+    // Build parent list
+    buildParentList();
+    wizSetPage(2);
+  } else if (state.wizStep === 2) {
+    buildConfirmPage();
+    wizSetPage(3);
+  } else if (state.wizStep === 3) {
+    doPromote();
+  }
+}
+
+function wizBack() {
+  if (state.wizStep > 1) wizSetPage(state.wizStep - 1);
+}
+
+function buildParentList() {
+  const list = document.getElementById('parent-list');
+  list.innerHTML = '';
+
+  // "No parent" option
+  const noneEl = document.createElement('div');
+  noneEl.className = 'parent-none' + (state.wizParentId === '__root__' ? ' selected' : '');
+  noneEl.textContent = '— Top-level (no parent) —';
+  noneEl.onclick = () => {
+    state.wizParentId = '__root__';
+    document.querySelectorAll('.parent-option, .parent-none').forEach(e => e.classList.remove('selected'));
+    noneEl.classList.add('selected');
+  };
+  list.appendChild(noneEl);
+
+  // Filter nodes to appropriate parents for this type
+  const parentTypes = nodeParentTypes(state.wizNodeType);
+  const candidates = state.nodes.filter(n => parentTypes.length === 0 || parentTypes.includes(n.type));
+
+  candidates.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'parent-option' + (state.wizParentId === n.id ? ' selected' : '');
+    el.innerHTML = `
+      <span class="parent-option-type">${n.type}</span>
+      <span class="parent-option-name">${esc(n.name || n.title || `Node #${n.id}`)}</span>
+    `;
+    el.onclick = () => {
+      state.wizParentId = n.id;
+      document.querySelectorAll('.parent-option, .parent-none').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+    list.appendChild(el);
+  });
+
+  if (!candidates.length) {
+    list.innerHTML += `<div style="padding:10px;font-size:12px;color:var(--text-muted)">No eligible parent nodes. Object will be created at top level.</div>`;
+  }
+}
+
+function buildConfirmPage() {
+  const obj = state.objects.find(o => o.id === state.promotingId);
+  const parentName = state.wizParentId === '__root__' ? 'Top-level'
+    : (state.nodes.find(n => n.id === state.wizParentId)?.name || `Node #${state.wizParentId}`);
+
+  const table = document.getElementById('confirm-table');
+  table.innerHTML = `
+    <div class="confirm-row"><span class="confirm-key">Object</span><span class="confirm-val">${esc(obj?.title)}</span></div>
+    <div class="confirm-row"><span class="confirm-key">Node Type</span><span class="confirm-val">${state.wizNodeType} — ${NODE_TYPE_SUBTITLES[state.wizNodeType]||''}</span></div>
+    <div class="confirm-row"><span class="confirm-key">Parent</span><span class="confirm-val">${esc(parentName)}</span></div>
+    <div class="confirm-row"><span class="confirm-key">Maturity</span><span class="confirm-val">${obj?.maturity}</span></div>
+    <div class="confirm-row"><span class="confirm-key">Confidence</span><span class="confirm-val">${obj?.confidence}</span></div>
+  `;
+
+  const warn = document.getElementById('promote-warning');
+  warn.style.display = obj?.confidence === 'low' ? '' : 'none';
+}
+
+async function doPromote() {
+  const nextBtn = document.getElementById('wiz-next-btn');
+  nextBtn.disabled = true;
+  nextBtn.textContent = 'Promoting…';
+
+  const body = {
+    target_node_type: state.wizNodeType,
+    parent_node_id: state.wizParentId === '__root__' ? null : state.wizParentId,
+  };
+
+  try {
+    const data = await api(`${BASE}/${state.promotingId}/promote`, { method: 'POST', body });
+    closeModal('modal-promote');
+    await loadObjects();
+    renderObjects();
+    showToast(`✓ Promoted to ${state.wizNodeType} — "${data.node?.name || data.node?.title || ''}"`, 'success');
+  } catch(e) {
+    alert(e.message);
+    nextBtn.disabled = false;
+    nextBtn.textContent = '✓ Promote';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AI ASSIST
+// ══════════════════════════════════════════════════════════════════════════
+async function runAI(action) {
+  const btnMap = { tags: 'btn-ai-tags', arch: 'btn-ai-arch', next: 'btn-ai-next' };
+  const btn = document.getElementById(btnMap[action]);
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  // Ensure bar is open
+  if (!state.aiOpen) {
+    state.aiOpen = true;
+    document.getElementById('ai-bar-body').classList.add('open');
+    document.getElementById('ai-bar-toggle-label').textContent = '▴ Collapse';
+  }
+
+  const resultEl  = document.getElementById('ai-result');
+  const titleEl   = document.getElementById('ai-result-title');
+  const bodyEl    = document.getElementById('ai-result-body');
+
+  resultEl.style.display = '';
+  titleEl.textContent = 'Thinking…';
+  bodyEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:4px 0">⌛ Analyzing your discovery workspace…</div>';
+
+  const endpointMap = { tags: 'ai/suggest-tags', arch: 'ai/suggest-architecture', next: 'ai/whats-next' };
+  const labelMap = { tags: 'SUGGESTED TAG GROUPS', arch: 'ARCHITECTURE PROPOSAL', next: "WHAT'S NEXT" };
+
+  try {
+    const data = await api(`${BASE}/${endpointMap[action]}`, { method: 'POST', body: {} });
+    state.aiResult = { action, data };
+    titleEl.textContent = labelMap[action];
+    bodyEl.innerHTML = renderAIResult(action, data);
+  } catch(e) {
+    titleEl.textContent = 'AI Error';
+    bodyEl.innerHTML = `<div style="color:var(--danger);font-size:13px">${esc(e.message)}</div>`;
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+function renderAIResult(action, data) {
+  if (action === 'tags') {
+    const groups = data.tag_groups || [];
+    if (!groups.length) return '<div style="color:var(--text-muted);font-size:13px">No tag groups suggested.</div>';
+
+    const html = groups.map(g => `
+      <div class="ai-tag-group">
+        <div class="ai-tag-dot" style="background:${esc(g.color || '#60a5fa')}"></div>
+        <div class="ai-tag-info">
+          <div class="ai-tag-label">${esc(g.label || g.tag)}</div>
+          <div class="ai-tag-rationale">${esc(g.rationale || '')} — Objects: ${(g.object_ids||[]).length}</div>
+        </div>
+        <button class="btn-ghost btn-sm ai-tag-apply" onclick="applyTagGroup(${JSON.stringify(g).replace(/"/g,'&quot;')})">Apply</button>
+      </div>
+    `).join('');
+
+    const reasoning = data.reasoning ? `<div class="ai-reasoning">${esc(data.reasoning)}</div>` : '';
+    return `<div class="ai-result-body">${html}${reasoning}</div>`;
+  }
+
+  if (action === 'arch') {
+    const subsystems = data.subsystems || [];
+    const gaps = data.gaps || [];
+    const promo = data.promotion_candidates || [];
+
+    let html = '';
+    if (data.architecture_name) {
+      html += `<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px">${esc(data.architecture_name)}</div>`;
+    }
+    if (data.description) {
+      html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">${esc(data.description)}</div>`;
+    }
+
+    html += subsystems.map(s => `
+      <div class="ai-subsystem">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="ai-subsys-name">${esc(s.name)}</div>
+          <div class="ai-subsys-type">${esc(s.node_type_suggestion || '')}</div>
+          <span style="font-size:10px;margin-left:auto;color:${s.confidence==='high'?'#4ade80':s.confidence==='medium'?'#fbbf24':'#f87171'}">${s.confidence} conf</span>
+        </div>
+        <div class="ai-subsys-desc">${esc(s.description || '')}</div>
+      </div>
+    `).join('');
+
+    if (gaps.length) {
+      html += `<div style="font-size:12px;color:var(--amber);margin-top:4px"><strong>Gaps:</strong> ${gaps.map(g => esc(g)).join(' · ')}</div>`;
+    }
+    if (promo.length) {
+      html += `<div style="font-size:12px;color:var(--text-muted);margin-top:4px"><strong>Promote candidates:</strong> ${promo.map(p => esc(p.object_title)).join(', ')}</div>`;
+    }
+
+    const reasoning = data.reasoning ? `<div class="ai-reasoning">${esc(data.reasoning)}</div>` : '';
+    return html + reasoning;
+  }
+
+  if (action === 'next') {
+    let html = '';
+
+    if (data.next_action) {
+      html += `<div class="ai-next-action">
+        <div>
+          <div class="ai-next-action-label">Do This Now</div>
+          <div class="ai-next-action-text">${esc(data.next_action)}</div>
+        </div>
+      </div>`;
+    }
+
+    if (data.summary) {
+      html += `<div style="font-size:12px;color:var(--text-secondary);margin:4px 0">${esc(data.summary)}</div>`;
+    }
+
+    const promote = data.promote_now || [];
+    const test    = data.test_next || [];
+    const deprior = data.deprioritize || [];
+    const missing = data.add_missing || [];
+
+    if (promote.length) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin-top:6px">Promote Now</div>`;
+      html += promote.map(p => `
+        <div class="ai-action-item">
+          <div class="ai-action-priority" style="background:#00AE68"></div>
+          <div class="ai-action-info">
+            <div class="ai-action-title">${esc(p.object_title)}</div>
+            <div class="ai-action-why">${esc(p.reason)} → ${esc(p.suggested_node_type)}</div>
+          </div>
+          <button class="btn-ghost btn-sm ai-action-btn" onclick="quickPromoteFromAI(${p.object_id})">Promote →</button>
+        </div>
+      `).join('');
+    }
+
+    if (test.length) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-top:6px">Test Next</div>`;
+      html += test.map(t => `
+        <div class="ai-action-item">
+          <div class="ai-action-priority" style="background:#f59e0b"></div>
+          <div class="ai-action-info">
+            <div class="ai-action-title">${esc(t.object_title)}</div>
+            <div class="ai-action-why">${esc(t.action)}</div>
+          </div>
+          <button class="btn-ghost btn-sm ai-action-btn" onclick="bumpMaturity(${t.object_id}, 'repeatable')">→ Repeatable</button>
+        </div>
+      `).join('');
+    }
+
+    if (deprior.length) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px">Deprioritize</div>`;
+      html += deprior.map(d => `
+        <div style="padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-secondary)">
+          <strong style="color:var(--text)">${esc(d.object_title)}</strong> — ${esc(d.reason)}
+        </div>
+      `).join('');
+    }
+
+    if (missing.length) {
+      html += `<div style="font-size:11px;font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:1px;margin-top:6px">Missing Areas</div>`;
+      html += `<div style="font-size:12px;color:var(--text-secondary)">${missing.map(m => '• ' + esc(m)).join('<br>')}</div>`;
+    }
+
+    return html;
+  }
+
+  return '<div style="color:var(--text-muted);font-size:13px">No result.</div>';
+}
+
+async function applyTagGroup(groupJson) {
+  // groupJson is HTML-escaped — decode it
+  const g = typeof groupJson === 'string'
+    ? JSON.parse(groupJson.replace(/&quot;/g, '"'))
+    : groupJson;
+
+  if (!g.object_ids || !g.object_ids.length) return;
+
+  const tag = g.tag;
+  const ids  = g.object_ids;
+
+  // Apply tag to all objects in the group
+  const updated = [];
+  for (const objId of ids) {
+    const obj = state.objects.find(o => o.id === objId);
+    if (!obj) continue;
+    const existingTags = Array.isArray(obj.tags) ? obj.tags : [];
+    if (existingTags.includes(tag)) continue;
+    const newTags = [...existingTags, tag];
+    try {
+      await api(`${BASE}/${objId}`, { method: 'PUT', body: { tags: newTags } });
+      updated.push(objId);
+    } catch(e) {}
+  }
+
+  await loadObjects();
+  renderObjects();
+  showToast(`✓ Applied tag "${tag}" to ${updated.length} objects`, 'success');
+}
+
+async function bumpMaturity(objId, maturity) {
+  try {
+    await api(`${BASE}/${objId}/maturity`, { method: 'PATCH', body: { maturity } });
+    await loadObjects();
+    renderObjects();
+    showToast(`Updated maturity to ${maturity}`, 'success');
+  } catch(e) {
+    alert(e.message);
+  }
+}
+
+async function quickPromoteFromAI(objId) {
+  const obj = state.objects.find(o => o.id === objId);
+  if (!obj) return;
+  openPromoteWizard(objId, null);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════════════════
+function nodeTypeIcon(t) {
+  return { SYS:'🏗️', SUBSYS:'⚙️', ASSY:'🔧', SUBASSY:'🔩', COMP:'📦', PURCH:'🛒' }[t] || '📐';
+}
+
+function nodeParentTypes(nodeType) {
+  // What types of nodes can be parents for this nodeType?
+  return {
+    SYS:    [],
+    SUBSYS: ['SYS'],
+    ASSY:   ['SYS', 'SUBSYS'],
+    SUBASSY:['ASSY', 'SUBSYS'],
+    COMP:   ['ASSY', 'SUBASSY', 'SUBSYS'],
+    PURCH:  ['ASSY', 'SUBASSY', 'SUBSYS', 'COMP'],
+  }[nodeType] || [];
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function esc(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer = null;
+function showToast(msg, type = 'info') {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.style.cssText = `
+      position:fixed;bottom:24px;right:24px;z-index:9999;
+      background:var(--surface-3);border:1px solid var(--border-light);
+      border-radius:8px;padding:10px 16px;font-size:13px;
+      color:var(--text);max-width:300px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.4);
+      transition:opacity 0.3s;
+    `;
+    document.body.appendChild(el);
+  }
+  if (type === 'success') el.style.borderColor = 'var(--primary)';
+  else el.style.borderColor = 'var(--border-light)';
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 3000);
+}
+</script>
+</body>
+</html>

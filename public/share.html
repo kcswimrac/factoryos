@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory-OS — Shared Project</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg:             #0A0A0A;
+            --surface:        #111111;
+            --surface-2:      #181818;
+            --surface-3:      #1F1F1F;
+            --border:         #222222;
+            --border-light:   #2e2e2e;
+            --text:           #FFFFFF;
+            --text-secondary: #A1A1AA;
+            --text-muted:     #52525B;
+            --primary:        #00AE68;
+            --primary-dim:    #00875A;
+            --primary-glow:   rgba(0, 174, 104, 0.1);
+            --primary-border: rgba(0, 174, 104, 0.25);
+            --assy:   #f59e0b;
+            --sys:    #60a5fa;
+            --subsys: #a78bfa;
+            --subassy:#34d399;
+            --comp:   #86efac;
+            --purch:  #f87171;
+            --doc:    #94a3b8;
+        }
+        html, body { height: 100%; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Top Nav ─────────────────────────────────────────────── */
+        .topnav {
+            height: 56px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            z-index: 20;
+        }
+        .topnav-left { display: flex; align-items: center; gap: 12px; }
+        .logo { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--text); text-decoration: none; }
+        .logo span { color: var(--primary); }
+        .nav-sep { width: 1px; height: 20px; background: var(--border-light); }
+        .project-label { font-size: 13px; font-weight: 600; color: var(--text); }
+        .team-label { font-size: 12px; color: var(--text-muted); }
+        .topnav-right { display: flex; align-items: center; gap: 10px; }
+        .badge-readonly {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 10px;
+            background: rgba(161,161,170,0.08);
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            font-size: 11px; font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+        .badge-readonly svg { width: 10px; height: 10px; }
+        .btn-cta {
+            height: 32px; padding: 0 16px;
+            background: var(--primary); border: none; border-radius: 6px;
+            color: #fff; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 6px;
+            text-decoration: none;
+        }
+        .btn-cta:hover { background: var(--primary-dim); }
+
+        /* ── Layout ──────────────────────────────────────────────── */
+        .app-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Left Sidebar (Tree) ─────────────────────────────────── */
+        .sidebar {
+            width: 300px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            background: var(--surface);
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .sidebar-title {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .tree-search {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--surface-2); border: 1px solid var(--border-light); border-radius: 6px;
+            padding: 0 10px; height: 30px;
+        }
+        .tree-search input {
+            flex: 1; background: transparent; border: none; outline: none;
+            color: var(--text); font-size: 12px; font-family: 'DM Sans', sans-serif;
+        }
+        .tree-search input::placeholder { color: var(--text-muted); }
+        .tree-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
+        .tree-scroll::-webkit-scrollbar { width: 4px; }
+        .tree-scroll::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+        /* Tree nodes */
+        .tree-node { position: relative; }
+        .tree-row {
+            display: flex; align-items: center;
+            height: 32px; padding-left: 8px;
+            cursor: pointer; transition: background 0.1s;
+            border-radius: 0;
+            user-select: none;
+        }
+        .tree-row:hover { background: var(--surface-2); }
+        .tree-row.active { background: var(--primary-glow); }
+        .tree-row.active .node-name { color: var(--primary); }
+        .toggle-btn {
+            width: 18px; height: 18px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted); transition: transform 0.15s;
+            background: transparent; border: none; cursor: pointer; padding: 0;
+        }
+        .toggle-btn.open { transform: rotate(90deg); }
+        .toggle-btn-spacer { width: 18px; flex-shrink: 0; }
+        .node-type-chip {
+            font-family: 'DM Mono', monospace;
+            font-size: 9px; font-weight: 500;
+            padding: 1px 5px; border-radius: 3px;
+            flex-shrink: 0;
+            margin-left: 4px;
+        }
+        .node-name {
+            flex: 1; margin-left: 6px;
+            font-size: 12.5px; font-weight: 500; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .node-pct {
+            font-size: 10px; color: var(--text-muted);
+            margin-right: 10px; flex-shrink: 0;
+            font-family: 'DM Mono', monospace;
+        }
+        .node-children { display: none; }
+        .node-children.open { display: block; }
+
+        /* Type colors */
+        .chip-assy   { background: rgba(245,158,11,0.12); color: var(--assy); }
+        .chip-sys    { background: rgba(96,165,250,0.12); color: var(--sys); }
+        .chip-subsys { background: rgba(167,139,250,0.12); color: var(--subsys); }
+        .chip-subassy{ background: rgba(52,211,153,0.12); color: var(--subassy); }
+        .chip-comp   { background: rgba(134,239,172,0.12); color: var(--comp); }
+        .chip-purch  { background: rgba(248,113,113,0.12); color: var(--purch); }
+        .chip-doc    { background: rgba(148,163,184,0.12); color: var(--doc); }
+
+        /* ── Detail Panel ─────────────────────────────────────────── */
+        .detail-panel {
+            flex: 1;
+            overflow-y: auto;
+            background: var(--bg);
+        }
+        .detail-panel::-webkit-scrollbar { width: 6px; }
+        .detail-panel::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+        .detail-inner {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 32px 32px 80px;
+        }
+        .detail-empty {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 60vh; gap: 12px; color: var(--text-muted);
+        }
+        .detail-empty .icon { font-size: 36px; }
+        .detail-empty p { font-size: 14px; }
+
+        /* Node header */
+        .node-header {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 16px; margin-bottom: 24px;
+        }
+        .node-header-left { flex: 1; }
+        .node-header-pn {
+            font-family: 'DM Mono', monospace; font-size: 11px;
+            color: var(--text-muted); margin-bottom: 4px;
+        }
+        .node-header-name {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px; font-weight: 700; color: var(--text);
+            margin-bottom: 4px;
+        }
+        .node-header-desc { font-size: 13px; color: var(--text-secondary); }
+
+        /* Tabs */
+        .detail-tabs {
+            display: flex; gap: 4px; margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .detail-tab {
+            padding: 8px 14px;
+            background: transparent; border: none; cursor: pointer;
+            font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+            color: var(--text-muted); border-bottom: 2px solid transparent;
+            transition: all 0.15s; margin-bottom: -1px;
+        }
+        .detail-tab:hover { color: var(--text); }
+        .detail-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        /* Phase grid */
+        .phase-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .phase-cell {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px 8px;
+            text-align: center;
+        }
+        .phase-cell-num {
+            font-family: 'DM Mono', monospace; font-size: 10px;
+            color: var(--text-muted); margin-bottom: 4px;
+        }
+        .phase-cell-label {
+            font-size: 10px; font-weight: 600;
+            color: var(--text-secondary);
+            line-height: 1.2;
+        }
+        .phase-cell-status {
+            margin-top: 6px;
+            font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .status-not_started .phase-cell-status { color: var(--text-muted); }
+        .status-in_progress { border-color: var(--assy); }
+        .status-in_progress .phase-cell-status { color: var(--assy); }
+        .status-complete { border-color: var(--primary-border); background: var(--primary-glow); }
+        .status-complete .phase-cell-status { color: var(--primary); }
+
+        /* Requirements list */
+        .req-list { display: flex; flex-direction: column; gap: 8px; }
+        .req-item {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; padding: 12px 14px;
+        }
+        .req-item-id {
+            font-family: 'DM Mono', monospace; font-size: 10px;
+            color: var(--text-muted); margin-bottom: 4px;
+        }
+        .req-item-text { font-size: 13px; color: var(--text); }
+        .req-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+        /* Section heading */
+        .section-heading {
+            font-size: 11px; font-weight: 600; letter-spacing: 1px;
+            text-transform: uppercase; color: var(--text-muted);
+            margin-bottom: 12px; margin-top: 24px;
+        }
+        .section-heading:first-child { margin-top: 0; }
+
+        /* Renders gallery */
+        .renders-gallery {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .render-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 8px; overflow: hidden;
+        }
+        .render-card img {
+            width: 100%; aspect-ratio: 4/3; object-fit: cover;
+            display: block; background: var(--surface-2);
+        }
+        .render-card-footer {
+            padding: 8px 10px;
+            font-size: 11px; color: var(--text-muted);
+        }
+
+        /* Empty states */
+        .empty-state {
+            padding: 32px;
+            text-align: center;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; color: var(--text-muted); font-size: 13px;
+        }
+
+        /* Loading */
+        .loading-spinner {
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; padding: 24px;
+            color: var(--text-muted); font-size: 13px;
+        }
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid var(--border-light);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Error banner */
+        .error-banner {
+            display: flex; align-items: center; justify-content: center;
+            height: 100vh; flex-direction: column; gap: 12px;
+            color: var(--text-muted); font-size: 15px;
+        }
+        .error-banner strong { color: var(--text); font-size: 20px; }
+
+        /* Project info bar */
+        .project-info-bar {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 16px;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .project-info-bar strong { color: var(--text); font-weight: 600; }
+
+        /* Phase progress bar mini */
+        .progress-bar-mini {
+            height: 3px; border-radius: 2px;
+            background: var(--border-light); overflow: hidden; margin-top: 4px;
+        }
+        .progress-bar-mini-fill {
+            height: 100%; background: var(--primary);
+            transition: width 0.3s;
+        }
+
+        /* Tab content sections */
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+    </style>
+</head>
+<body>
+
+<!-- ── Top Nav ─────────────────────────────────────────────────────────────── -->
+<nav class="topnav">
+    <div class="topnav-left">
+        <a class="logo" href="/"><span>F</span>actory-OS</a>
+        <div class="nav-sep"></div>
+        <div>
+            <div class="project-label" id="navProjectName">Loading…</div>
+            <div class="team-label" id="navTeamName"></div>
+        </div>
+    </div>
+    <div class="topnav-right">
+        <span class="badge-readonly">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+            VIEW ONLY
+        </span>
+        <a href="/login" class="btn-cta">Sign in to edit</a>
+    </div>
+</nav>
+
+<!-- ── Error / Loading State ───────────────────────────────────────────────── -->
+<div class="error-banner" id="errorBanner" style="display:none">
+    <strong id="errorTitle">Project not found</strong>
+    <span id="errorMsg">This shared link may have expired or been disabled.</span>
+    <a href="/" style="color: var(--primary); font-size: 13px; margin-top: 8px;">Back to Factory-OS</a>
+</div>
+
+<!-- ── Main App Body ────────────────────────────────────────────────────────── -->
+<div class="app-body" id="appBody" style="display:none">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">Node Tree</div>
+            <div class="tree-search">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search nodes…" oninput="filterTree()">
+            </div>
+        </div>
+        <div class="tree-scroll" id="treeContainer">
+            <div class="loading-spinner"><div class="spinner"></div>Loading…</div>
+        </div>
+    </aside>
+
+    <!-- Detail Panel -->
+    <main class="detail-panel" id="detailPanel">
+        <div class="detail-inner">
+            <div class="detail-empty" id="detailEmpty">
+                <div class="icon">◈</div>
+                <p>Select a node to view details</p>
+            </div>
+            <div id="detailContent" style="display:none">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </main>
+
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let shareToken = null;
+let projectData = null;
+let allNodes = [];         // flat list
+let selectedNodeId = null;
+let activeTab = 'phases';
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    // Extract token from path: /share/:token
+    const parts = window.location.pathname.split('/');
+    shareToken = parts[parts.length - 1];
+    if (!shareToken || shareToken === 'share') {
+        showError('No share token', 'The URL is missing a valid share token.');
+        return;
+    }
+    loadProject();
+});
+
+async function loadProject() {
+    try {
+        const resp = await fetch(`/api/public/project/${shareToken}`);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showError('Project not found', err.message || 'This link may have been disabled.');
+            return;
+        }
+        const data = await resp.json();
+        projectData = data.project;
+        allNodes = flattenTree(data.nodes);
+
+        // Update nav
+        document.getElementById('navProjectName').textContent = projectData.name;
+        document.getElementById('navTeamName').textContent = projectData.team_name || '';
+        document.title = `${projectData.name} — Factory-OS`;
+
+        // Render tree
+        document.getElementById('treeContainer').innerHTML = '';
+        if (data.nodes.length === 0) {
+            document.getElementById('treeContainer').innerHTML = '<div class="loading-spinner" style="color:var(--text-muted)">No nodes yet</div>';
+        } else {
+            renderTree(data.nodes, document.getElementById('treeContainer'), 0);
+        }
+
+        document.getElementById('appBody').style.display = 'flex';
+    } catch (e) {
+        showError('Failed to load project', e.message);
+    }
+}
+
+// ── Tree Rendering ────────────────────────────────────────────────────────────
+function flattenTree(nodes) {
+    const flat = [];
+    function walk(n) { flat.push(n); (n.children||[]).forEach(walk); }
+    nodes.forEach(walk);
+    return flat;
+}
+
+function typeClass(t) {
+    return 'chip-' + (t||'comp').toLowerCase();
+}
+
+function renderTree(nodes, container, depth) {
+    nodes.forEach(node => {
+        const wrap = document.createElement('div');
+        wrap.className = 'tree-node';
+        wrap.dataset.nodeId = node.id;
+
+        const hasChildren = node.children && node.children.length > 0;
+        const pct = node.phase_summary ? node.phase_summary.progress_pct : null;
+
+        const row = document.createElement('div');
+        row.className = 'tree-row';
+        row.dataset.nodeId = node.id;
+        row.style.paddingLeft = `${8 + depth * 16}px`;
+        row.onclick = (e) => {
+            e.stopPropagation();
+            selectNode(node.id);
+        };
+
+        if (hasChildren) {
+            const btn = document.createElement('button');
+            btn.className = 'toggle-btn';
+            btn.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>`;
+            btn.onclick = (e) => { e.stopPropagation(); toggleChildren(node.id, btn); };
+            row.appendChild(btn);
+        } else {
+            const sp = document.createElement('span');
+            sp.className = 'toggle-btn-spacer';
+            row.appendChild(sp);
+        }
+
+        const chip = document.createElement('span');
+        chip.className = `node-type-chip ${typeClass(node.type)}`;
+        chip.textContent = node.type;
+        row.appendChild(chip);
+
+        const name = document.createElement('span');
+        name.className = 'node-name';
+        name.textContent = node.name;
+        row.appendChild(name);
+
+        if (pct !== null) {
+            const pctEl = document.createElement('span');
+            pctEl.className = 'node-pct';
+            pctEl.textContent = pct + '%';
+            row.appendChild(pctEl);
+        }
+
+        wrap.appendChild(row);
+
+        if (hasChildren) {
+            const childWrap = document.createElement('div');
+            childWrap.className = 'node-children';
+            childWrap.id = `children-${node.id}`;
+            renderTree(node.children, childWrap, depth + 1);
+            wrap.appendChild(childWrap);
+        }
+
+        container.appendChild(wrap);
+    });
+}
+
+function toggleChildren(nodeId, btn) {
+    const childEl = document.getElementById(`children-${nodeId}`);
+    if (!childEl) return;
+    const isOpen = childEl.classList.contains('open');
+    childEl.classList.toggle('open', !isOpen);
+    btn.classList.toggle('open', !isOpen);
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+let searchQuery = '';
+function filterTree() {
+    searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+    const rows = document.querySelectorAll('.tree-row');
+    if (!searchQuery) {
+        rows.forEach(r => { r.parentElement.style.display = ''; });
+        return;
+    }
+    rows.forEach(r => {
+        const name = r.querySelector('.node-name')?.textContent.toLowerCase() || '';
+        r.parentElement.style.display = name.includes(searchQuery) ? '' : 'none';
+    });
+}
+
+// ── Node Selection ────────────────────────────────────────────────────────────
+function selectNode(nodeId) {
+    // Update active state
+    document.querySelectorAll('.tree-row').forEach(r => r.classList.remove('active'));
+    const row = document.querySelector(`.tree-row[data-node-id="${nodeId}"]`);
+    if (row) {
+        row.classList.add('active');
+        // Expand parents
+        let parent = row.parentElement?.parentElement;
+        while (parent && parent.classList.contains('node-children')) {
+            parent.classList.add('open');
+            const btn = parent.previousElementSibling?.querySelector('.toggle-btn');
+            if (btn) btn.classList.add('open');
+            parent = parent.parentElement?.parentElement;
+        }
+    }
+
+    selectedNodeId = nodeId;
+    activeTab = 'phases';
+    loadNodeDetail(nodeId);
+}
+
+async function loadNodeDetail(nodeId) {
+    const node = allNodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    document.getElementById('detailEmpty').style.display = 'none';
+    const content = document.getElementById('detailContent');
+    content.style.display = 'block';
+
+    content.innerHTML = `
+        <div class="node-header">
+            <div class="node-header-left">
+                <div class="node-header-pn">${node.part_number || ''}</div>
+                <div class="node-header-name">${node.name}</div>
+                ${node.description ? `<div class="node-header-desc">${node.description}</div>` : ''}
+            </div>
+            <span class="node-type-chip ${typeClass(node.type)}" style="font-size:11px;padding:4px 10px">${node.type}</span>
+        </div>
+        <div class="detail-tabs">
+            <button class="detail-tab active" onclick="switchTab('phases', this)">Phases</button>
+            <button class="detail-tab" onclick="switchTab('requirements', this)">Requirements</button>
+            <button class="detail-tab" onclick="switchTab('renders', this)">CAD Renders</button>
+        </div>
+        <div id="tabPhases" class="tab-pane active">
+            <div class="loading-spinner"><div class="spinner"></div>Loading phases…</div>
+        </div>
+        <div id="tabRequirements" class="tab-pane">
+            <div class="loading-spinner"><div class="spinner"></div>Loading requirements…</div>
+        </div>
+        <div id="tabRenders" class="tab-pane">
+            <div class="loading-spinner"><div class="spinner"></div>Loading renders…</div>
+        </div>
+    `;
+
+    // Load phases immediately (first tab)
+    loadPhases(nodeId);
+}
+
+function switchTab(tab, btn) {
+    activeTab = tab;
+    document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    const paneMap = { phases: 'tabPhases', requirements: 'tabRequirements', renders: 'tabRenders' };
+    document.getElementById(paneMap[tab]).classList.add('active');
+
+    if (tab === 'requirements') loadRequirements(selectedNodeId);
+    if (tab === 'renders') loadRenders(selectedNodeId);
+}
+
+// ── Phases ────────────────────────────────────────────────────────────────────
+const PHASE_LABELS = {
+    requirements: 'Requirements',
+    rnd: 'R&D',
+    design_cad: 'Design/CAD',
+    data_collection: 'Data Coll.',
+    analysis_cae: 'Analysis',
+    testing_validation: 'Testing',
+    correlation: 'Correlation'
+};
+const PHASE_KEYS = ['requirements','rnd','design_cad','data_collection','analysis_cae','testing_validation','correlation'];
+
+async function loadPhases(nodeId) {
+    const pane = document.getElementById('tabPhases');
+    try {
+        const resp = await fetch(`/api/public/project/${shareToken}/nodes/${nodeId}/phases`);
+        if (!resp.ok) { pane.innerHTML = `<div class="empty-state">No phase data available</div>`; return; }
+        const { phases } = await resp.json();
+
+        const phaseMap = {};
+        phases.forEach(p => { phaseMap[p.phase] = p; });
+
+        const complete = phases.filter(p => p.status === 'complete').length;
+        const pct = Math.round((complete / 7) * 100);
+
+        let html = `
+            <div class="section-heading">Phase Lifecycle — ${complete}/7 complete (${pct}%)</div>
+            <div class="progress-bar-mini" style="margin-bottom:20px">
+                <div class="progress-bar-mini-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="phase-grid">
+        `;
+
+        PHASE_KEYS.forEach((key, i) => {
+            const p = phaseMap[key];
+            const status = p ? p.status : 'not_started';
+            const statusLabel = status === 'not_started' ? 'Not Started'
+                              : status === 'in_progress' ? 'In Progress' : 'Complete';
+            html += `
+                <div class="phase-cell status-${status}">
+                    <div class="phase-cell-num">${i+1}</div>
+                    <div class="phase-cell-label">${PHASE_LABELS[key]}</div>
+                    <div class="phase-cell-status">${statusLabel}</div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+
+        // Notes (if any completed phases have notes)
+        const withNotes = phases.filter(p => p.notes);
+        if (withNotes.length > 0) {
+            html += `<div class="section-heading">Phase Notes</div>`;
+            withNotes.forEach(p => {
+                html += `
+                    <div class="req-item" style="margin-bottom:8px">
+                        <div class="req-item-id">${PHASE_LABELS[p.phase]}</div>
+                        <div class="req-item-text">${escHtml(p.notes)}</div>
+                    </div>
+                `;
+            });
+        }
+
+        pane.innerHTML = html;
+    } catch (e) {
+        pane.innerHTML = `<div class="empty-state">Failed to load phases: ${e.message}</div>`;
+    }
+}
+
+// ── Requirements ──────────────────────────────────────────────────────────────
+async function loadRequirements(nodeId) {
+    const pane = document.getElementById('tabRequirements');
+    if (pane.dataset.loaded === 'true') return;
+    try {
+        const resp = await fetch(`/api/public/project/${shareToken}/nodes/${nodeId}/requirements`);
+        if (!resp.ok) { pane.innerHTML = `<div class="empty-state">No requirements data</div>`; return; }
+        const { requirements } = await resp.json();
+
+        if (!requirements.length) {
+            pane.innerHTML = `<div class="empty-state">No requirements attached to this node</div>`;
+            return;
+        }
+
+        let html = `<div class="section-heading">${requirements.length} Requirement${requirements.length !== 1 ? 's' : ''}</div><div class="req-list">`;
+        requirements.forEach((r, i) => {
+            html += `
+                <div class="req-item">
+                    <div class="req-item-id">REQ-${String(i+1).padStart(3,'0')} ${r.category ? `· ${r.category}` : ''}</div>
+                    <div class="req-item-text">${escHtml(r.text || r.description || '')}</div>
+                    ${r.acceptance_criteria ? `<div class="req-item-meta">✓ ${escHtml(r.acceptance_criteria)}</div>` : ''}
+                </div>
+            `;
+        });
+        html += `</div>`;
+        pane.innerHTML = html;
+        pane.dataset.loaded = 'true';
+    } catch(e) {
+        pane.innerHTML = `<div class="empty-state">Failed to load requirements: ${e.message}</div>`;
+    }
+}
+
+// ── Renders ───────────────────────────────────────────────────────────────────
+async function loadRenders(nodeId) {
+    const pane = document.getElementById('tabRenders');
+    if (pane.dataset.loaded === 'true') return;
+    try {
+        const resp = await fetch(`/api/public/project/${shareToken}/nodes/${nodeId}/renders`);
+        if (!resp.ok) { pane.innerHTML = `<div class="empty-state">No renders available</div>`; return; }
+        const { renders } = await resp.json();
+
+        if (!renders.length) {
+            pane.innerHTML = `<div class="empty-state">No CAD renders attached to this node</div>`;
+            return;
+        }
+
+        let html = `<div class="section-heading">${renders.length} Render${renders.length !== 1 ? 's' : ''}</div><div class="renders-gallery">`;
+        renders.forEach(r => {
+            const src = r.url || r.r2_url || r.file_url || '';
+            html += `
+                <div class="render-card">
+                    ${src ? `<img src="${escAttr(src)}" alt="${escAttr(r.label || r.filename || 'Render')}" loading="lazy">` : `<div style="aspect-ratio:4/3;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px">No preview</div>`}
+                    <div class="render-card-footer">${escHtml(r.label || r.filename || 'Render')}</div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        pane.innerHTML = html;
+        pane.dataset.loaded = 'true';
+    } catch(e) {
+        pane.innerHTML = `<div class="empty-state">Failed to load renders: ${e.message}</div>`;
+    }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function showError(title, msg) {
+    document.getElementById('errorTitle').textContent = title;
+    document.getElementById('errorMsg').textContent = msg;
+    document.getElementById('errorBanner').style.display = 'flex';
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+    if (!str) return '';
+    return str.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Factory-OS — Welcome</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:             #0A0A0A;
+      --surface:        #111111;
+      --surface-2:      #181818;
+      --surface-3:      #1F1F1F;
+      --border:         #222222;
+      --border-light:   #2e2e2e;
+      --text:           #FFFFFF;
+      --text-secondary: #A1A1AA;
+      --text-muted:     #52525B;
+      --primary:        #00AE68;
+      --primary-dim:    #00875A;
+      --primary-glow:   rgba(0, 174, 104, 0.12);
+      --primary-border: rgba(0, 174, 104, 0.3);
+      --danger:         #ef4444;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── LAYOUT ── */
+    .onboarding-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px 48px;
+    }
+
+    .logo-mark {
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--primary);
+      letter-spacing: 0.08em;
+      margin-bottom: 48px;
+    }
+
+    /* ── PROGRESS BAR ── */
+    .progress-track {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 40px;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: color 0.2s;
+    }
+
+    .progress-step.active { color: var(--text); }
+    .progress-step.done { color: var(--primary); }
+
+    .step-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'DM Mono', monospace;
+      color: var(--text-muted);
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .progress-step.active .step-dot {
+      border-color: var(--primary);
+      background: var(--primary-glow);
+      color: var(--primary);
+    }
+
+    .progress-step.done .step-dot {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #000;
+    }
+
+    .progress-connector {
+      width: 32px;
+      height: 1.5px;
+      background: var(--border-light);
+      transition: background 0.3s;
+    }
+
+    .progress-connector.done {
+      background: var(--primary);
+    }
+
+    /* ── CARD ── */
+    .card {
+      width: 100%;
+      max-width: 520px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 40px 36px;
+    }
+
+    .card-header { margin-bottom: 28px; }
+
+    .card-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .card-subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 20px; }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 7px;
+    }
+
+    .form-label span {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--surface-3);
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 15px;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+    }
+
+    .form-input::placeholder { color: var(--text-muted); }
+
+    textarea.form-input {
+      resize: vertical;
+      min-height: 90px;
+      line-height: 1.5;
+    }
+
+    .form-error {
+      font-size: 13px;
+      color: var(--danger);
+      margin-top: 6px;
+      display: none;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #000;
+    }
+
+    .btn-primary:hover { background: #00c97a; }
+    .btn-primary:active { background: var(--primary-dim); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border-light);
+    }
+
+    .btn-ghost:hover {
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+
+    .btn-outline-primary {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary-border);
+    }
+
+    .btn-outline-primary:hover {
+      background: var(--primary-glow);
+    }
+
+    .btn-full { width: 100%; }
+
+    .btn-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .btn-row-end {
+      display: flex;
+      gap: 10px;
+      margin-top: 28px;
+      justify-content: flex-end;
+    }
+
+    .skip-link {
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      transition: color 0.15s;
+    }
+
+    .skip-link:hover { color: var(--text-secondary); }
+
+    /* ── WELCOME SCREEN ── */
+    .welcome-hero {
+      text-align: center;
+      padding: 8px 0 4px;
+    }
+
+    .welcome-hero .card-title { font-size: 30px; }
+    .welcome-hero .card-subtitle { font-size: 15px; max-width: 380px; margin: 0 auto; }
+
+    .welcome-options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .welcome-option {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+    }
+
+    .welcome-option:hover {
+      border-color: var(--primary-border);
+      background: var(--primary-glow);
+    }
+
+    .welcome-option-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 20px;
+    }
+
+    .welcome-option-icon.green {
+      background: var(--primary-glow);
+      border: 1px solid var(--primary-border);
+    }
+
+    .welcome-option-icon.muted {
+      background: var(--surface-3);
+      border: 1px solid var(--border-light);
+    }
+
+    .welcome-option-label {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .welcome-option-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* ── TOUR ── */
+    .tour-features {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 8px 0 4px;
+    }
+
+    .tour-feature {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .tour-feature.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .tour-feature-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .tour-feature-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+
+    .tour-feature-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    /* ── STEP VISIBILITY ── */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; }
+
+    /* ── LOADING SPINNER ── */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: rgba(0,0,0,0.8);
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── DEMO BADGE ── */
+    .demo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      background: rgba(251,191,36,0.12);
+      border: 1px solid rgba(251,191,36,0.25);
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #FBBF24;
+      font-family: 'DM Mono', monospace;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+  <div class="onboarding-shell">
+    <div class="logo-mark">FACTORY-OS</div>
+
+    <!-- Progress indicator (hidden on welcome) -->
+    <div class="progress-track" id="progressTrack" style="display:none">
+      <div class="progress-step" id="ps1">
+        <div class="step-dot">1</div>
+        <span>Team</span>
+      </div>
+      <div class="progress-connector" id="pc1"></div>
+      <div class="progress-step" id="ps2">
+        <div class="step-dot">2</div>
+        <span>Project</span>
+      </div>
+      <div class="progress-connector" id="pc2"></div>
+      <div class="progress-step" id="ps3">
+        <div class="step-dot">3</div>
+        <span>Tour</span>
+      </div>
+    </div>
+
+    <!-- ── STEP 0: WELCOME ── -->
+    <div class="card step-panel active" id="step-0">
+      <div class="card-header welcome-hero">
+        <div class="card-eyebrow">Welcome</div>
+        <div class="card-title">Engineering discipline, built in.</div>
+        <div class="card-subtitle">Factory-OS guides your team from requirements through validation — no spreadsheets, no gaps.</div>
+      </div>
+
+      <div class="welcome-options">
+        <button class="welcome-option" onclick="startFresh()">
+          <div class="welcome-option-icon green">🚀</div>
+          <div>
+            <div class="welcome-option-label">Start fresh</div>
+            <div class="welcome-option-desc">Create your team and first project in under 2 minutes.</div>
+          </div>
+        </button>
+
+        <button class="welcome-option" id="loadDemoBtn" onclick="loadDemo()">
+          <div class="welcome-option-icon muted">🔬</div>
+          <div>
+            <div class="welcome-option-label">Load Demo Data <span class="demo-badge">DEMO</span></div>
+            <div class="welcome-option-desc">Explore with pre-built Baja SAE and Drone examples — no commitment.</div>
+          </div>
+        </button>
+      </div>
+
+      <div style="margin-top:20px;text-align:center">
+        <button class="skip-link" onclick="skipToProjects()">Already have projects? Go to dashboard →</button>
+      </div>
+    </div>
+
+    <!-- ── STEP 1: TEAM ── -->
+    <div class="card step-panel" id="step-1">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 1 of 2</div>
+        <div class="card-title">Create your team</div>
+        <div class="card-subtitle">Teams group your projects. Use your org name, department, or competition team.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="teamName">Team name</label>
+        <input class="form-input" id="teamName" type="text" placeholder="e.g. Baja SAE — Cal Poly" maxlength="120" autocomplete="off">
+        <div class="form-error" id="teamNameErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="teamLogo">Team logo URL <span>(optional)</span></label>
+        <input class="form-input" id="teamLogo" type="url" placeholder="https://..." autocomplete="off">
+      </div>
+
+      <div class="btn-row">
+        <button class="skip-link" onclick="goToStep(0)">← Back</button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="skip-link" onclick="skipToProjects()">Skip setup</button>
+          <button class="btn btn-primary" id="teamNext" onclick="goToStep(2)">
+            Next: Project →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 2: PROJECT ── -->
+    <div class="card step-panel" id="step-2">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 2 of 2</div>
+        <div class="card-title">Name your first project</div>
+        <div class="card-subtitle">This becomes the top of your node tree — usually a system or product you're designing.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="projectName">Project name</label>
+        <input class="form-input" id="projectName" type="text" placeholder="e.g. Baja SAE 2025 Drivetrain" maxlength="120" autocomplete="off">
+        <div class="form-error" id="projectNameErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="projectDesc">Description <span>(optional)</span></label>
+        <textarea class="form-input" id="projectDesc" placeholder="What are you designing or validating?" rows="3"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button class="skip-link" onclick="goToStep(1)">← Back</button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="skip-link" onclick="skipToProjects()">Skip setup</button>
+          <button class="btn btn-primary" id="createBtn" onclick="createSetup()">
+            Create &amp; Continue →
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STEP 3: TOUR ── -->
+    <div class="card step-panel" id="step-3">
+      <div class="card-header">
+        <div class="card-eyebrow">You're all set</div>
+        <div class="card-title">Here's what you've got.</div>
+        <div class="card-subtitle">Factory-OS structures your entire engineering process in one place.</div>
+      </div>
+
+      <div class="tour-features" id="tourFeatures">
+        <div class="tour-feature" data-delay="0">
+          <div class="tour-feature-icon">🌳</div>
+          <div>
+            <div class="tour-feature-title">Node Tree</div>
+            <div class="tour-feature-desc">Build your system hierarchy — system → subsystem → component. Every node has its own design lifecycle.</div>
+          </div>
+        </div>
+        <div class="tour-feature" data-delay="80">
+          <div class="tour-feature-icon">🚦</div>
+          <div>
+            <div class="tour-feature-title">Phase Gating</div>
+            <div class="tour-feature-desc">7-phase engineering cycle: Requirements → R&amp;D → Design → Data → Analysis → Testing → Correlation. Hard gates enforce discipline.</div>
+          </div>
+        </div>
+        <div class="tour-feature" data-delay="160">
+          <div class="tour-feature-icon">📋</div>
+          <div>
+            <div class="tour-feature-title">Requirements Tracking</div>
+            <div class="tour-feature-desc">Capture SHALL/SHOULD/GOAL requirements per node and link test results back to them.</div>
+          </div>
+        </div>
+        <div class="tour-feature" data-delay="240">
+          <div class="tour-feature-icon">🤖</div>
+          <div>
+            <div class="tour-feature-title">AI Copilot</div>
+            <div class="tour-feature-desc">AI guidance available at every phase — from requirement drafts to DOE analysis suggestions.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row-end">
+        <button class="btn btn-primary btn-full" id="enterAppBtn" onclick="enterApp()">
+          Open my project →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentStep = 0;
+    let createdProjectId = null;
+
+    // ── Routing guard: if teams already exist, redirect immediately
+    async function init() {
+      try {
+        const r = await fetch('/api/onboarding/status');
+        const d = await r.json();
+        // If already set up, go to projects
+        if (!d.needs_onboarding) {
+          window.location.replace('/projects');
+          return;
+        }
+      } catch(e) {
+        // Server error — allow onboarding to proceed
+      }
+    }
+
+    init();
+
+    // ── Step navigation ──
+    function goToStep(n) {
+      // Validate before advancing
+      if (n === 2 && currentStep === 1) {
+        const name = document.getElementById('teamName').value.trim();
+        if (!name) {
+          showFieldError('teamNameErr', 'Team name is required.');
+          document.getElementById('teamName').focus();
+          return;
+        }
+        clearFieldError('teamNameErr');
+      }
+
+      document.getElementById('step-' + currentStep).classList.remove('active');
+      currentStep = n;
+      document.getElementById('step-' + n).classList.add('active');
+      updateProgress();
+
+      if (n === 3) {
+        animateTourFeatures();
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateProgress() {
+      const track = document.getElementById('progressTrack');
+
+      if (currentStep === 0) {
+        track.style.display = 'none';
+        return;
+      }
+
+      track.style.display = 'flex';
+
+      // Step dots
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById('ps' + i);
+        el.classList.remove('active', 'done');
+        if (i < currentStep) el.classList.add('done');
+        else if (i === currentStep) el.classList.add('active');
+      }
+
+      // Connectors
+      for (let i = 1; i <= 2; i++) {
+        const el = document.getElementById('pc' + i);
+        el.classList.toggle('done', i < currentStep);
+      }
+
+      // Update dot icons for completed steps
+      for (let i = 1; i <= 3; i++) {
+        const dot = document.querySelector('#ps' + i + ' .step-dot');
+        if (i < currentStep) {
+          dot.innerHTML = '✓';
+        } else {
+          dot.innerHTML = i;
+        }
+      }
+    }
+
+    // ── Welcome actions ──
+    function startFresh() {
+      goToStep(1);
+    }
+
+    async function loadDemo() {
+      const btn = document.getElementById('loadDemoBtn');
+      btn.disabled = true;
+      btn.querySelector('.welcome-option-label').textContent = 'Loading demo data…';
+
+      try {
+        const r = await fetch('/api/demo/seed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const d = await r.json();
+
+        if (d.success) {
+          // Redirect to projects page
+          window.location.href = '/projects';
+        } else {
+          btn.disabled = false;
+          btn.querySelector('.welcome-option-label').innerHTML = 'Load Demo Data <span class="demo-badge">DEMO</span>';
+          alert('Failed to load demo data: ' + (d.message || 'Unknown error'));
+        }
+      } catch(e) {
+        btn.disabled = false;
+        btn.querySelector('.welcome-option-label').innerHTML = 'Load Demo Data <span class="demo-badge">DEMO</span>';
+        alert('Network error loading demo data.');
+      }
+    }
+
+    function skipToProjects() {
+      window.location.href = '/projects';
+    }
+
+    // ── Create setup ──
+    async function createSetup() {
+      const projectName = document.getElementById('projectName').value.trim();
+      const teamName = document.getElementById('teamName').value.trim();
+
+      if (!projectName) {
+        showFieldError('projectNameErr', 'Project name is required.');
+        document.getElementById('projectName').focus();
+        return;
+      }
+      clearFieldError('projectNameErr');
+
+      const btn = document.getElementById('createBtn');
+      setLoading(btn, true);
+
+      try {
+        const r = await fetch('/api/onboarding/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            team_name: teamName,
+            team_logo_url: document.getElementById('teamLogo').value.trim() || null,
+            project_name: projectName,
+            project_description: document.getElementById('projectDesc').value.trim() || null,
+          })
+        });
+
+        const d = await r.json();
+
+        if (d.success) {
+          createdProjectId = d.project.id;
+          goToStep(3);
+        } else {
+          showFieldError('projectNameErr', d.message || 'Something went wrong.');
+        }
+      } catch(e) {
+        showFieldError('projectNameErr', 'Network error. Please try again.');
+      } finally {
+        setLoading(btn, false);
+      }
+    }
+
+    // ── Tour animations ──
+    function animateTourFeatures() {
+      const features = document.querySelectorAll('.tour-feature');
+      features.forEach(f => f.classList.remove('visible'));
+      features.forEach(f => {
+        const delay = parseInt(f.dataset.delay) || 0;
+        setTimeout(() => f.classList.add('visible'), delay + 50);
+      });
+    }
+
+    // ── Enter app ──
+    function enterApp() {
+      if (createdProjectId) {
+        window.location.href = '/app?project=' + createdProjectId;
+      } else {
+        window.location.href = '/projects';
+      }
+    }
+
+    // ── Field errors ──
+    function showFieldError(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function clearFieldError(id) {
+      const el = document.getElementById(id);
+      el.style.display = 'none';
+      el.textContent = '';
+    }
+
+    // ── Loading state ──
+    function setLoading(btn, loading) {
+      if (loading) {
+        btn.disabled = true;
+        btn._originalHTML = btn.innerHTML;
+        btn.innerHTML = '<div class="spinner"></div> Creating…';
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = btn._originalHTML || 'Create &amp; Continue →';
+      }
+    }
+
+    // ── Enter key support ──
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      const tag = e.target.tagName;
+      if (tag === 'TEXTAREA') return; // let textarea handle it
+
+      if (currentStep === 1) {
+        goToStep(2);
+      } else if (currentStep === 2) {
+        createSetup();
+      } else if (currentStep === 3) {
+        enterApp();
+      }
+    });
+  </script>
+</body>
+</html>

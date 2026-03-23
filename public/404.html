@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 — Page Not Found | Factory-OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0A0A0A;
+      --surface: #141414;
+      --border: #1e1e1e;
+      --primary: #00AE68;
+      --primary-hover: #00c977;
+      --text: #F4F4F5;
+      --text-secondary: #A1A1AA;
+      --text-muted: #52525B;
+    }
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      height: 100%;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      text-align: center;
+      padding: 40px 24px;
+      max-width: 480px;
+    }
+    .error-code {
+      font-size: 96px;
+      font-weight: 700;
+      color: var(--primary);
+      font-family: 'DM Mono', monospace;
+      line-height: 1;
+      letter-spacing: -4px;
+      margin-bottom: 16px;
+      opacity: 0.9;
+    }
+    .error-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .error-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+    .path-hint {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      display: inline-block;
+      margin-bottom: 32px;
+      word-break: break-all;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 18px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      height: 38px;
+      padding: 0 18px;
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-ghost:hover { border-color: #3f3f46; color: var(--text); }
+    .logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 48px;
+    }
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .logo span { color: var(--primary); }
+    .divider {
+      width: 48px;
+      height: 2px;
+      background: var(--border);
+      margin: 0 auto 32px;
+      border-radius: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo-row">
+      <a href="/projects" class="logo">Factory<span>-OS</span></a>
+    </div>
+    <div class="error-code">404</div>
+    <div class="divider"></div>
+    <div class="error-title">Page not found</div>
+    <div class="error-desc">
+      That URL doesn't exist. You might have a typo, or the page may have moved.
+    </div>
+    <div class="path-hint" id="pathHint"></div>
+    <div class="actions">
+      <a href="/projects" class="btn-primary">Go to Projects</a>
+      <a href="javascript:history.back()" class="btn-ghost">← Go back</a>
+    </div>
+  </div>
+  <script>
+    var hint = document.getElementById('pathHint');
+    hint.textContent = window.location.pathname + window.location.search;
+  </script>
+</body>
+</html>

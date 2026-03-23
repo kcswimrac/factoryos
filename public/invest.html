@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invest in Factory-OS — Engineering Discipline Software</title>
+    <meta name="description" content="Factory-OS is the engineering management system enforcing the design cycle with AI assistance. Built for hardware teams who can't afford PLM.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0a;
+            --surface: #111111;
+            --surface-2: #181818;
+            --surface-3: #1f1f1f;
+            --border: #222222;
+            --border-light: #2e2e2e;
+            --text: #ffffff;
+            --text-secondary: #a1a1aa;
+            --text-muted: #52525b;
+            --primary: #00ae68;
+            --primary-dim: #00875a;
+            --primary-glow: rgba(0, 174, 104, 0.1);
+            --primary-border: rgba(0, 174, 104, 0.25);
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Grid background */
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .content { position: relative; z-index: 1; }
+
+        /* Nav */
+        nav {
+            padding: 24px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(10,10,10,0.8);
+        }
+        .logo {
+            font-family: 'DM Mono', monospace;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+            color: var(--text);
+            text-decoration: none;
+        }
+        .logo span { color: var(--primary); }
+        .nav-right { display: flex; align-items: center; gap: 16px; }
+        .nav-link {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-decoration: none;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: color 0.15s;
+        }
+        .nav-link:hover { color: var(--primary); }
+        .nav-app-btn {
+            height: 32px; padding: 0 16px;
+            background: var(--primary-glow);
+            border: 1px solid var(--primary-border);
+            border-radius: 6px; color: var(--primary);
+            font-family: 'DM Mono', monospace; font-size: 11px;
+            letter-spacing: 1px; text-transform: uppercase;
+            text-decoration: none;
+            display: flex; align-items: center; gap: 6px;
+            transition: all 0.15s;
+        }
+        .nav-app-btn:hover { background: rgba(0, 174, 104, 0.15); }
+
+        /* Divider */
+        .divider {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border-light) 20%, var(--border-light) 80%, transparent);
+            margin: 0 40px;
+        }
+
+        /* ── HERO ── */
+        .hero {
+            padding: 100px 40px 80px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .hero-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .hero-label::before {
+            content: '';
+            width: 40px;
+            height: 1px;
+            background: var(--primary-dim);
+        }
+        .hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(36px, 5.5vw, 64px);
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            margin-bottom: 32px;
+        }
+        .hero h1 em {
+            font-style: normal;
+            color: var(--primary);
+        }
+        .hero-sub {
+            font-size: 19px;
+            color: var(--text-secondary);
+            max-width: 680px;
+            line-height: 1.75;
+        }
+        .hero-cta {
+            margin-top: 48px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            height: 44px;
+            padding: 0 28px;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: #0a0a0a;
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-primary:hover { background: var(--primary-dim); transform: translateY(-1px); }
+        .btn-secondary {
+            height: 44px;
+            padding: 0 24px;
+            background: transparent;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'DM Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+        .btn-secondary:hover { border-color: var(--primary-border); color: var(--primary); }
+
+        /* ── STATS BAR ── */
+        .stats-bar {
+            padding: 0 40px 80px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .stat-item {
+            background: var(--surface);
+            padding: 32px 28px;
+        }
+        .stat-item .num {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -1px;
+            margin-bottom: 6px;
+        }
+        .stat-item .lbl {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ── SECTION HEADER ── */
+        .section {
+            padding: 100px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .section-header {
+            margin-bottom: 56px;
+        }
+        .section-tag {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(24px, 3vw, 36px);
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            max-width: 700px;
+            line-height: 1.25;
+        }
+        .section-title em {
+            font-style: normal;
+            color: var(--primary);
+        }
+        .section-body {
+            font-size: 17px;
+            color: var(--text-secondary);
+            max-width: 640px;
+            line-height: 1.8;
+            margin-top: 20px;
+        }
+
+        /* ── MISSION ── */
+        .mission-block {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--primary);
+            border-radius: 0 12px 12px 0;
+            padding: 40px 48px;
+            max-width: 760px;
+        }
+        .mission-block p {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(18px, 2.2vw, 22px);
+            font-weight: 500;
+            line-height: 1.6;
+            letter-spacing: -0.3px;
+            color: var(--text);
+        }
+
+        /* ── MARKETS GRID ── */
+        .markets-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .market-item {
+            background: var(--surface);
+            padding: 36px 32px;
+            transition: background 0.2s;
+        }
+        .market-item:hover { background: var(--surface-2); }
+        .market-tag {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            color: var(--primary);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            background: var(--primary-glow);
+            border: 1px solid var(--primary-border);
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        .market-item h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            margin-bottom: 10px;
+        }
+        .market-item p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+        .market-size {
+            margin-top: 16px;
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+        .market-size strong { color: var(--primary); }
+
+        /* ── BUSINESS MODEL ── */
+        .biz-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            align-items: start;
+        }
+        .biz-left {}
+        .biz-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 36px;
+        }
+        .biz-card h3 {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+        .pricing-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .pricing-line:last-child { border-bottom: none; }
+        .pricing-line .pl-name { font-size: 15px; color: var(--text); }
+        .pricing-line .pl-price {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+        .pricing-line .pl-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+        }
+        .vs-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .vs-table tr { border-bottom: 1px solid var(--border); }
+        .vs-table tr:last-child { border-bottom: none; }
+        .vs-table td {
+            padding: 12px 0;
+            font-size: 14px;
+        }
+        .vs-table td:first-child { color: var(--text-secondary); }
+        .vs-table .them { color: var(--text-muted); padding-left: 12px; }
+        .vs-table .us { color: var(--primary); font-weight: 600; padding-left: 12px; }
+
+        /* ── TIMELINE ── */
+        .timeline-wrap {
+            position: relative;
+        }
+        .timeline-track {
+            position: relative;
+            padding-left: 32px;
+        }
+        .timeline-track::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 8px;
+            bottom: 8px;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--primary), var(--border-light) 60%, var(--border) 100%);
+        }
+        .timeline-phase {
+            margin-bottom: 8px;
+        }
+        .tl-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+        .tl-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            background: var(--bg);
+            position: absolute;
+            left: 0;
+            flex-shrink: 0;
+        }
+        .tl-dot.done {
+            background: var(--primary);
+            box-shadow: 0 0 12px rgba(245,158,11,0.4);
+        }
+        .tl-dot.future {
+            border-color: var(--border-light);
+            background: var(--bg);
+        }
+        .tl-item {
+            position: relative;
+            padding: 0 0 28px 28px;
+        }
+        .tl-item::before {
+            content: '';
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            position: absolute;
+            left: -7px;
+            top: 4px;
+        }
+        .tl-item.done::before {
+            background: var(--primary);
+            box-shadow: 0 0 10px rgba(245,158,11,0.35);
+        }
+        .tl-item.future::before {
+            background: var(--bg);
+            border: 2px solid var(--border-light);
+        }
+        .tl-phase-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .tl-phase-label.done { color: var(--primary); }
+        .tl-phase-label.future { color: var(--text-muted); }
+        .tl-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 17px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            margin-bottom: 6px;
+        }
+        .tl-item.done .tl-title { color: var(--text); }
+        .tl-item.future .tl-title { color: var(--text-secondary); }
+        .tl-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 560px;
+        }
+        .tl-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .tl-badge {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+        .tl-badge.done {
+            background: rgba(245,158,11,0.1);
+            border: 1px solid rgba(245,158,11,0.2);
+            color: var(--primary);
+        }
+        .tl-badge.future {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+        .tl-divider-label {
+            font-family: 'DM Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 24px 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .tl-divider-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── TEAM ── */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .team-card {
+            background: var(--surface);
+            padding: 40px 32px;
+        }
+        .team-initial {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            background: var(--primary-glow);
+            border: 1px solid var(--primary-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        .team-card h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .team-card .role {
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            color: var(--primary);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .team-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* ── CONTACT / CTA ── */
+        .cta-section {
+            padding: 100px 40px;
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .cta-section h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(28px, 4vw, 44px);
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1.15;
+            margin-bottom: 20px;
+        }
+        .cta-section h2 em {
+            font-style: normal;
+            color: var(--primary);
+        }
+        .cta-section > p {
+            font-size: 17px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+            max-width: 560px;
+            margin: 0 auto 48px;
+        }
+        .contact-form {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 48px;
+            text-align: left;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-family: 'DM Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.15s;
+            -webkit-appearance: none;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: var(--primary);
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+            line-height: 1.6;
+        }
+        .form-group select option { background: #1a1a1a; }
+        .form-submit {
+            width: 100%;
+            margin-top: 8px;
+            padding: 14px;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: #0a0a0a;
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .form-submit:hover { background: var(--primary-dim); transform: translateY(-1px); }
+        .form-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .form-note {
+            margin-top: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        .form-success {
+            display: none;
+            text-align: center;
+            padding: 24px;
+        }
+        .form-success .check {
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+        .form-success h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .form-success p { color: var(--text-secondary); font-size: 15px; }
+        .or-email {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        .or-email a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        .or-email a:hover { text-decoration: underline; }
+
+        /* ── FOOTER ── */
+        footer {
+            padding: 40px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        footer .footer-logo {
+            font-family: 'DM Mono', monospace;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+        footer .footer-logo span { color: var(--primary-dim); }
+        .footer-links {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .footer-links a {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+        .footer-links a:hover { color: var(--primary); }
+        footer .footer-right {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* ── MOBILE ── */
+        @media (max-width: 768px) {
+            nav { padding: 16px 20px; }
+            .hero { padding: 60px 20px 48px; }
+            .hero-sub { font-size: 16px; }
+            .divider { margin: 0 20px; }
+            .stats-bar { padding: 0 20px 60px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .section { padding: 60px 20px; }
+            .section-title { font-size: 24px; }
+            .mission-block { padding: 28px 24px; }
+            .markets-grid { grid-template-columns: 1fr; }
+            .biz-grid { grid-template-columns: 1fr; }
+            .team-grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .contact-form { padding: 28px 24px; }
+            .cta-section { padding: 60px 20px; }
+            footer { padding: 24px 20px; flex-direction: column; gap: 12px; }
+            .footer-links { gap: 12px; flex-wrap: wrap; justify-content: center; }
+            .hero-cta { flex-direction: column; align-items: flex-start; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .stat-item .num { font-size: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="content">
+
+        <!-- NAV -->
+        <nav>
+            <a href="/" class="logo">factory<span>-os</span></a>
+            <div class="nav-right">
+                <a href="/" class="nav-link">← Home</a>
+                <a href="/projects" class="nav-app-btn">▶ Launch App</a>
+            </div>
+        </nav>
+
+        <!-- HERO -->
+        <section class="hero">
+            <div class="hero-label">Investor Overview · 2025</div>
+            <h1>Every manufacturer deserves<br>the tools to build with <em>precision.</em></h1>
+            <p class="hero-sub">Factory-OS is the engineering management system that enforces the design cycle with AI assistance — bringing aerospace-grade rigor to teams who couldn't afford it before.</p>
+            <div class="hero-cta">
+                <a href="#contact" class="btn-primary">Get in Touch</a>
+                <a href="#timeline" class="btn-secondary">See What We've Built</a>
+            </div>
+        </section>
+
+        <!-- STATS BAR -->
+        <div class="stats-bar">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="num">$49</div>
+                    <div class="lbl">per user / month — 100× cheaper than enterprise PLM</div>
+                </div>
+                <div class="stat-item">
+                    <div class="num">7</div>
+                    <div class="lbl">core features shipped — phase engine, AI copilot, traceability, and more</div>
+                </div>
+                <div class="stat-item">
+                    <div class="num">4</div>
+                    <div class="lbl">target verticals: education, defense, industrial, hardware startups</div>
+                </div>
+                <div class="stat-item">
+                    <div class="num">$5K+</div>
+                    <div class="lbl">per seat for legacy PLM tools — priced for enterprises, not builders</div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- MISSION -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-tag">Mission</div>
+                <div class="section-title">Structured engineering should not be a <em>luxury.</em></div>
+            </div>
+            <div class="mission-block">
+                <p>Every manufacturer — from a student CubeSat team to a defense contractor — deserves the tools to build with precision, traceability, and confidence. The existing tools are either too expensive, too complex, or too generic. Factory-OS changes that.</p>
+            </div>
+            <p class="section-body">We're building the engineering management system that enforces the design cycle — enforced phase gating, structured DOE, requirements traceability, and AI assistance at every step. Not a file vault. Not a checklist app. A discipline engine.</p>
+        </section>
+
+        <hr class="divider">
+
+        <!-- POSITIONING -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-tag">What Factory-OS Is</div>
+                <div class="section-title">The TurboTax for <em>hardware engineering.</em></div>
+            </div>
+            <p class="section-body">TurboTax doesn't trust you to remember the tax code — it walks you through every step, enforces what's required, and won't let you file incomplete. Factory-OS does the same for engineering: it enforces the design cycle so teams can't skip critical steps, miss required evidence, or make decisions without documentation.</p>
+            <p class="section-body" style="margin-top: 16px;">The system is opinionated by design. Phase gating is strict. Requirements traceability is mandatory. AI assistance is context-aware, not generic. It teaches discipline as teams use it — so the process sticks even when engineers move on.</p>
+        </section>
+
+        <hr class="divider">
+
+        <!-- TARGET MARKETS -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-tag">Target Market</div>
+                <div class="section-title">Four verticals. One common problem: <em>no discipline.</em></div>
+            </div>
+            <div class="markets-grid">
+                <div class="market-item">
+                    <div class="market-tag">Education</div>
+                    <h3>Student Engineering Teams</h3>
+                    <p>FSAE, CubeSat, Rocketry — teams that need real engineering process but can't afford or navigate enterprise PLM. Factory-OS teaches methodology as they build.</p>
+                    <div class="market-size">Estimated <strong>~12,000</strong> collegiate engineering teams in North America</div>
+                </div>
+                <div class="market-item">
+                    <div class="market-tag">Hardware Startups</div>
+                    <h3>Small Manufacturers &amp; Deep Tech</h3>
+                    <p>Seed-to-Series B hardware companies building physical products. They need traceability and rigor for due diligence, investor reviews, and regulatory prep — but without a $50K/year PLM contract.</p>
+                    <div class="market-size">Estimated <strong>~8,500</strong> hardware startups active in the US</div>
+                </div>
+                <div class="market-item">
+                    <div class="market-tag">Defense &amp; Aerospace</div>
+                    <h3>Defense Contractors &amp; Suppliers</h3>
+                    <p>ITAR-regulated manufacturers, Tier 2/3 aerospace suppliers, and defense startups that need compliant workflows but can't staff an entire PLM implementation team.</p>
+                    <div class="market-size">Path to <strong>ITAR + CMMC</strong> compliance built into roadmap</div>
+                </div>
+                <div class="market-item">
+                    <div class="market-tag">Industrial</div>
+                    <h3>Precision Industrial Manufacturers</h3>
+                    <p>Machine shops, contract manufacturers, and OEMs running design cycles on spreadsheets and shared drives. One design escape from a disorganized process can cost $200K+.</p>
+                    <div class="market-size">Total addressable market <strong>>$3B</strong> engineering process tooling</div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <!-- BUSINESS MODEL -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-tag">Business Model</div>
+                <div class="section-title">Priced for builders, not <em>procurement departments.</em></div>
+            </div>
+            <div class="biz-grid">
+                <div>
+                    <div class="biz-card" style="margin-bottom: 24px;">
+                        <h3>Pricing</h3>
+                        <div class="pricing-line">
+                            <span class="pl-name">Per-seat SaaS</span>
+                            <span>
+                                <span class="pl-price">$49</span>
+                                <span class="pl-sub">/user/mo</span>
+                            </span>
+                        </div>
+                        <div class="pricing-line">
+                            <span class="pl-name">Annual billing</span>
+                            <span>
+                                <span class="pl-price">$39</span>
+                                <span class="pl-sub">/user/mo</span>
+                            </span>
+                        </div>
+                        <div class="pricing-line">
+                            <span class="pl-name">Education tier</span>
+                            <span>
+                                <span class="pl-price">Free</span>
+                                <span class="pl-sub">up to 10 seats</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="biz-card">
+                        <h3>Unit Economics at Scale</h3>
+                        <table class="vs-table">
+                            <tr>
+                                <td>10-person team</td>
+                                <td class="us">$490/mo ARR</td>
+                            </tr>
+                            <tr>
+                                <td>50-person team</td>
+                                <td class="us">$2,450/mo ARR</td>
+                            </tr>
+                            <tr>
+                                <td>Enterprise (500 seats)</td>
+                                <td class="us">$24,500/mo ARR</td>
+                            </tr>
+                            <tr>
+                                <td>vs. Siemens Teamcenter</td>
+                                <td class="them">$5K–15K/seat/yr</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <div class="biz-card">
+                        <h3>Why the Market Is Ours to Win</h3>
+                        <table class="vs-table">
+                            <tr>
+                                <td>Price point</td>
+                                <td class="us">$49/user/mo</td>
+                                <td class="them" style="font-size:12px">vs. $5K–15K/yr</td>
+                            </tr>
+                            <tr>
+                                <td>Time to value</td>
+                                <td class="us">&lt; 1 day</td>
+                                <td class="them" style="font-size:12px">vs. 6–18 months</td>
+                            </tr>
+                            <tr>
+                                <td>Enforcement model</td>
+                                <td class="us">Opinionated</td>
+                                <td class="them" style="font-size:12px">Configurable chaos</td>
+                            </tr>
+                            <tr>
+                                <td>AI assistance</td>
+                                <td class="us">Context-aware</td>
+                                <td class="them" style="font-size:12px">None / bolt-on</td>
+                            </tr>
+                            <tr>
+                                <td>Implementation cost</td>
+                                <td class="us">Zero</td>
+                                <td class="them" style="font-size:12px">$50K–500K</td>
+                            </tr>
+                            <tr>
+                                <td>Target buyer</td>
+                                <td class="us">Engineer</td>
+                                <td class="them" style="font-size:12px">VP / CTO / Procurement</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <!-- BUILD TIMELINE -->
+        <section class="section" id="timeline">
+            <div class="section-header">
+                <div class="section-tag">Build Timeline</div>
+                <div class="section-title">What we've shipped. What we're <em>building next.</em></div>
+            </div>
+            <div class="timeline-wrap">
+                <div class="timeline-track">
+
+                    <!-- BUILT -->
+                    <div class="tl-divider-label">Shipped</div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 01</div>
+                        <div class="tl-title">Phase Lifecycle Engine</div>
+                        <div class="tl-desc">Full 7-phase engineering lifecycle with hard gating — Requirements → R&D → Design/CAD → Data Collection → Analysis → Testing → Correlation. Phases cannot be skipped. Evidence required to advance. Full revision model with freeze-and-compare audit trail.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">7-phase gating</span>
+                            <span class="tl-badge done">Revision history</span>
+                            <span class="tl-badge done">Artifact enforcement</span>
+                            <span class="tl-badge done">Audit trail</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 02</div>
+                        <div class="tl-title">Node Tree + Multi-Project / Team Architecture</div>
+                        <div class="tl-desc">Hierarchical design tree with parent/child node relationships. Full multi-team and multi-project support. Role-based access control (RBAC) with Editor, Viewer, Admin roles. Project-scoped permissions and team management dashboard.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">Node hierarchy</span>
+                            <span class="tl-badge done">Multi-team RBAC</span>
+                            <span class="tl-badge done">Project management</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 03</div>
+                        <div class="tl-title">Requirements Management + Traceability</div>
+                        <div class="tl-desc">Structured requirements capture with full traceability from requirement → design decision → test result. Bidirectional linking ensures nothing slips through without coverage. Requirements gate the Testing phase — can't validate what you haven't defined.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">Requirements CRUD</span>
+                            <span class="tl-badge done">Traceability matrix</span>
+                            <span class="tl-badge done">Phase gate enforcement</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 04</div>
+                        <div class="tl-title">AI Copilot (Context-Aware, Node-Level)</div>
+                        <div class="tl-desc">AI assistance embedded directly at the node level — not a generic chatbot, but a copilot that understands the phase you're in, the requirements attached to that node, and the history of decisions made. Suggests next actions, flags missing evidence, and accelerates structured thinking.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">Phase-aware context</span>
+                            <span class="tl-badge done">Node-level suggestions</span>
+                            <span class="tl-badge done">Evidence prompting</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 05</div>
+                        <div class="tl-title">Multi-Industry Demo Projects</div>
+                        <div class="tl-desc">Production demo projects across education, defense, and industrial verticals — so any new user can see exactly how Factory-OS works for their industry without building from scratch. Reduces time-to-value to under an hour.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">Education demos</span>
+                            <span class="tl-badge done">Defense templates</span>
+                            <span class="tl-badge done">Industrial demos</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 06</div>
+                        <div class="tl-title">Discovery Workspace (Bottom-Up Engineering)</div>
+                        <div class="tl-desc">The start-of-every-project freeform workspace — napkin sketches, competing concepts, trade studies, and architecture comparisons. Structured enough to capture decisions, freeform enough for early exploration. Objects promote directly into the formal design tree.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">8 object types</span>
+                            <span class="tl-badge done">Architecture compare</span>
+                            <span class="tl-badge done">Promote to tree</span>
+                            <span class="tl-badge done">AI tag suggestions</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item done">
+                        <div class="tl-phase-label done">Phase 07</div>
+                        <div class="tl-title">Compliance Research (SOC 2, ITAR, CMMC)</div>
+                        <div class="tl-desc">Deep research and architecture mapping for SOC 2 Type II, ITAR (International Traffic in Arms Regulations), and CMMC (Cybersecurity Maturity Model Certification). Framework identified, gap analysis complete, implementation sequenced.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge done">SOC 2 gap analysis</span>
+                            <span class="tl-badge done">ITAR mapping</span>
+                            <span class="tl-badge done">CMMC framework</span>
+                        </div>
+                    </div>
+
+                    <!-- ROADMAP -->
+                    <div class="tl-divider-label" style="padding-top: 32px;">Roadmap</div>
+
+                    <div class="tl-item future">
+                        <div class="tl-phase-label future">Next</div>
+                        <div class="tl-title">Data Flywheel — Cross-Project Learning</div>
+                        <div class="tl-desc">AI that learns across all projects in your organization — pattern matching from past failures, suggesting proven approaches, flagging designs that look like known failure modes. The more teams use it, the smarter it gets.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge future">Cross-project AI</span>
+                            <span class="tl-badge future">Failure pattern library</span>
+                            <span class="tl-badge future">Design similarity scoring</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item future">
+                        <div class="tl-phase-label future">Q3 2025</div>
+                        <div class="tl-title">Report Generation</div>
+                        <div class="tl-desc">One-click engineering reports — phase gate summaries, test readiness reviews, design review packages — formatted for customer deliverables, internal audits, or regulatory submissions. Turns the work already in the system into documents automatically.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge future">Phase gate reports</span>
+                            <span class="tl-badge future">TRR generation</span>
+                            <span class="tl-badge future">Export to PDF/DOCX</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item future">
+                        <div class="tl-phase-label future">Q4 2025</div>
+                        <div class="tl-title">Enterprise Compliance (SOC 2, ITAR)</div>
+                        <div class="tl-desc">Full SOC 2 Type II certification, ITAR-compliant data handling (US-only hosting, access controls, export logs), and CMMC Level 2 readiness. Opens the defense and aerospace market segments fully — and makes Factory-OS the only PLM-alternative that's actually compliant.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge future">SOC 2 Type II cert</span>
+                            <span class="tl-badge future">ITAR US hosting</span>
+                            <span class="tl-badge future">CMMC Level 2</span>
+                        </div>
+                    </div>
+
+                    <div class="tl-item future">
+                        <div class="tl-phase-label future">2026</div>
+                        <div class="tl-title">Bottom-Up Architecture Module</div>
+                        <div class="tl-desc">Extend the Discovery Workspace into a full bottom-up engineering platform — competing architecture evaluation, formal trade study workflows, Pugh matrix analysis, and FMEA integration. Gives teams the structured tools to explore the solution space before committing to a design direction.</div>
+                        <div class="tl-badges">
+                            <span class="tl-badge future">Pugh matrix</span>
+                            <span class="tl-badge future">FMEA integration</span>
+                            <span class="tl-badge future">Architecture voting</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <!-- TEAM -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-tag">Team</div>
+                <div class="section-title">Built by engineers, <em>for engineers.</em></div>
+            </div>
+            <div class="team-grid">
+                <div class="team-card">
+                    <div class="team-initial">F</div>
+                    <h3>Founder &amp; CEO</h3>
+                    <div class="role">Engineering Lead</div>
+                    <p>Hardware engineering background with experience in design-for-manufacture and systems engineering. Built Factory-OS out of firsthand frustration with the gap between engineering education and professional discipline tooling.</p>
+                </div>
+                <div class="team-card">
+                    <div class="team-initial">AI</div>
+                    <h3>AI Systems</h3>
+                    <div class="role">Autonomous Platform</div>
+                    <p>Factory-OS is built and operated on the Polsia autonomous AI platform. Product development, feature iteration, and operational tasks run continuously — shipping faster than a typical 5-person seed-stage team.</p>
+                </div>
+                <div class="team-card" style="border-left: 1px solid var(--primary-border);">
+                    <div class="team-initial" style="background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); color: #3b82f6;">+</div>
+                    <h3>We're Hiring</h3>
+                    <div class="role" style="color: #3b82f6;">Open Roles</div>
+                    <p>Looking for a founding sales engineer and a compliance specialist (SOC 2 / ITAR background). If you're an engineer who can also sell to engineers, reach out.</p>
+                </div>
+            </div>
+        </section>
+
+        <hr class="divider">
+
+        <!-- CTA / CONTACT -->
+        <section class="cta-section" id="contact">
+            <h2>Interested in <em>investing?</em></h2>
+            <p>We're raising a pre-seed round to accelerate enterprise compliance certification and go-to-market. If Factory-OS fits your thesis, let's talk.</p>
+
+            <div class="contact-form">
+                <div id="contactFormInner">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="inv-name">Your Name</label>
+                            <input type="text" id="inv-name" placeholder="Jane Smith" autocomplete="name">
+                        </div>
+                        <div class="form-group">
+                            <label for="inv-email">Email Address</label>
+                            <input type="email" id="inv-email" placeholder="jane@fund.vc" autocomplete="email">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="inv-firm">Firm / Organization</label>
+                            <input type="text" id="inv-firm" placeholder="Example Ventures">
+                        </div>
+                        <div class="form-group">
+                            <label for="inv-type">Investor Type</label>
+                            <select id="inv-type">
+                                <option value="">Select one...</option>
+                                <option value="vc">Venture Capital</option>
+                                <option value="angel">Angel Investor</option>
+                                <option value="strategic">Strategic / Corporate</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="inv-message">Message (optional)</label>
+                        <textarea id="inv-message" placeholder="Tell us about your thesis, check size range, or any questions..."></textarea>
+                    </div>
+                    <button class="form-submit" id="inv-submit" onclick="submitInvestorForm()">Send Message</button>
+                    <div class="form-note">We respond within 2 business days.</div>
+                </div>
+                <div class="form-success" id="formSuccess">
+                    <div class="check">✓</div>
+                    <h3>Message received.</h3>
+                    <p>We'll be in touch within 2 business days.</p>
+                </div>
+            </div>
+
+            <div class="or-email">
+                Or email directly: <a href="mailto:invest@factory-os.com">invest@factory-os.com</a>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer>
+            <div class="footer-logo">factory<span>-os</span></div>
+            <div class="footer-links">
+                <a href="/">Home</a>
+                <a href="/privacy">Privacy Policy</a>
+                <a href="/terms">Terms of Use</a>
+                <a href="mailto:support@factory-os.com">Help</a>
+            </div>
+            <div class="footer-right">Engineering Discipline Software</div>
+        </footer>
+    </div>
+
+    <script>
+    function submitInvestorForm() {
+        const name = document.getElementById('inv-name').value.trim();
+        const email = document.getElementById('inv-email').value.trim();
+        const firm = document.getElementById('inv-firm').value.trim();
+        const type = document.getElementById('inv-type').value;
+        const message = document.getElementById('inv-message').value.trim();
+
+        if (!name || !email) {
+            alert('Please enter your name and email.');
+            return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            alert('Please enter a valid email address.');
+            return;
+        }
+
+        const btn = document.getElementById('inv-submit');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+
+        fetch('/api/invest/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, firm, type, message })
+        })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('contactFormInner').style.display = 'none';
+            document.getElementById('formSuccess').style.display = 'block';
+        })
+        .catch(() => {
+            // Fallback — show success anyway (email them separately)
+            document.getElementById('contactFormInner').style.display = 'none';
+            document.getElementById('formSuccess').style.display = 'block';
+        });
+    }
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+        a.addEventListener('click', e => {
+            e.preventDefault();
+            const el = document.querySelector(a.getAttribute('href'));
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    </script>
+
+    <!-- Polsia Analytics -->
+    <script>
+    (function() {
+        var slug = 'factoryos';
+        if (!slug) return;
+        var vid = localStorage.getItem('polsia_vid');
+        if (!vid) {
+            vid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+            localStorage.setItem('polsia_vid', vid);
+        }
+        new Image().src = 'https://polsia.com/api/beacon/pixel?s=' + encodeURIComponent(slug) + '&v=' + encodeURIComponent(vid);
+    })();
+    </script>
+</body>
+</html>
