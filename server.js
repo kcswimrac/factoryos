@@ -123,6 +123,28 @@ app.use('/api/onboarding', onboardingRouter);
 const analyticsRouter = require('./routes/analytics');
 app.use('/api/analytics', authenticateToken, analyticsRouter);
 
+// ── Phase 2: Factory-os frontend-compatible API routes ──────────────────────
+
+// Experiments (DOE frontend — full factorial analysis engine)
+const experimentsRouter = require('./routes/experiments');
+app.use('/api/experiments', optionalAuth, experimentsRouter);
+
+// Experiment sharing (token-based guest access)
+const experimentSharesRouter = require('./routes/experiment-shares');
+app.use('/api/experiment-shares', optionalAuth, experimentSharesRouter);
+
+// Design cycle (9-phase engineering methodology)
+const designCycleRouter = require('./routes/design-cycle');
+app.use('/api/design', optionalAuth, designCycleRouter);
+
+// Resources (tool & asset inventory with checkout/return)
+const resourcesInventoryRouter = require('./routes/resources-inventory');
+app.use('/api/resources', optionalAuth, resourcesInventoryRouter);
+
+// Visitors (live SSE count)
+const visitorsRouter = require('./routes/visitors');
+app.use('/api/visitors', visitorsRouter);
+
 // Bidirectional: GET /api/nodes/:nodeId/sops
 // Returns all SOPs that include this node in their linked_nodes JSON array
 app.get('/api/nodes/:nodeId/sops', optionalAuth, async (req, res) => {
