@@ -1,5 +1,5 @@
 /**
- * Database Migration Runner
+ * Database Migration Runner (MySQL)
  *
  * Runs on every deploy via `npm run build`.
  *
@@ -15,43 +15,49 @@
  * Migration file format:
  *   module.exports = {
  *     name: 'add_products_table',
- *     up: async (client) => {
- *       await client.query(`CREATE TABLE products (...)`);
+ *     up: async (conn) => {
+ *       await conn.query(`CREATE TABLE products (...)`);
  *     }
  *   };
  */
-const { Pool } = require('pg');
+const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
+async function getConnection() {
+  return mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306', 10),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'factoryos',
+    multipleStatements: true,
+  });
+}
 
 async function migrate() {
   console.log('Running migrations...');
 
-  const client = await pool.connect();
+  const conn = await getConnection();
   try {
     // 1. Create migration tracking table (always first)
-    await client.query(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS _migrations (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL UNIQUE,
         applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // 2. Core tables (idempotent - safe to run every time)
-    await runCoreMigrations(client);
+    await runCoreMigrations(conn);
 
     // 3. Run migrations from migrations/ folder
-    await runFolderMigrations(client);
+    await runFolderMigrations(conn);
 
     console.log('Migrations complete.');
   } finally {
-    client.release();
-    await pool.end();
+    await conn.end();
   }
 }
 
@@ -59,50 +65,54 @@ async function migrate() {
  * Core tables that every app needs.
  * These use CREATE IF NOT EXISTS so they're safe to run repeatedly.
  */
-async function runCoreMigrations(client) {
+async function runCoreMigrations(conn) {
   // Users table with subscription support
-  // Used by Polsia for syncing end-user subscription status
-  await client.query(`
+  await conn.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
+      id INT AUTO_INCREMENT PRIMARY KEY,
       email VARCHAR(255) NOT NULL,
       name VARCHAR(255),
       password_hash VARCHAR(255),
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW(),
-      -- Subscription fields (synced by Polsia when customer subscribes)
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       stripe_subscription_id VARCHAR(255),
       subscription_status VARCHAR(50),
       subscription_plan VARCHAR(255),
-      subscription_expires_at TIMESTAMPTZ,
-      subscription_updated_at TIMESTAMPTZ
+      subscription_expires_at TIMESTAMP NULL,
+      subscription_updated_at TIMESTAMP NULL
     )
   `);
 
-  // Unique constraint on email (required for UPSERT)
-  await client.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (LOWER(email))
-  `);
+  // Unique index on email
+  await conn.query(`
+    CREATE PROCEDURE IF NOT EXISTS _ensure_users_email_idx()
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'users' AND index_name = 'users_email_unique_idx') THEN
+        CREATE UNIQUE INDEX users_email_unique_idx ON users (email);
+      END IF;
+    END
+  `).catch(() => {});
+  // Simpler approach: just try to create, ignore if exists
+  await conn.query(`
+    CREATE UNIQUE INDEX users_email_unique_idx ON users (email)
+  `).catch(() => {}); // ignore if already exists
 
-  // Index for subscription lookups
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS users_stripe_subscription_id_idx ON users (stripe_subscription_id)
-  `);
+  await conn.query(`
+    CREATE INDEX users_stripe_subscription_id_idx ON users (stripe_subscription_id)
+  `).catch(() => {}); // ignore if already exists
 }
 
 /**
  * Run migrations from migrations/ folder.
  * Each migration runs once and is tracked in _migrations table.
  */
-async function runFolderMigrations(client) {
+async function runFolderMigrations(conn) {
   const migrationsDir = path.join(__dirname, 'migrations');
 
-  // Skip if no migrations folder
   if (!fs.existsSync(migrationsDir)) {
     return;
   }
 
-  // Get all migration files, sorted by name (timestamp prefix ensures order)
   const files = fs.readdirSync(migrationsDir)
     .filter(f => f.endsWith('.js'))
     .sort();
@@ -112,8 +122,8 @@ async function runFolderMigrations(client) {
   }
 
   // Get already-applied migrations
-  const applied = await client.query('SELECT name FROM _migrations');
-  const appliedNames = new Set(applied.rows.map(r => r.name));
+  const [applied] = await conn.query('SELECT name FROM _migrations');
+  const appliedNames = new Set(applied.map(r => r.name));
 
   // Run pending migrations
   for (const file of files) {
@@ -121,19 +131,19 @@ async function runFolderMigrations(client) {
     const name = migration.name || file.replace('.js', '');
 
     if (appliedNames.has(name)) {
-      continue; // Already applied
+      continue;
     }
 
     console.log(`Running migration: ${name}`);
 
     try {
-      await client.query('BEGIN');
-      await migration.up(client);
-      await client.query('INSERT INTO _migrations (name) VALUES ($1)', [name]);
-      await client.query('COMMIT');
+      await conn.beginTransaction();
+      await migration.up(conn);
+      await conn.query('INSERT INTO _migrations (name) VALUES (?)', [name]);
+      await conn.commit();
       console.log(`Migration complete: ${name}`);
     } catch (err) {
-      await client.query('ROLLBACK');
+      await conn.rollback();
       throw new Error(`Migration failed (${name}): ${err.message}`);
     }
   }

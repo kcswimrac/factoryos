@@ -35,26 +35,25 @@ const PHASE_HINTS = {
 // ── Shared: Gather node context from DB ──────────────────────────────────────
 async function buildNodeContext(pool, nodeId) {
   // 1. Fetch node
-  const nodeResult = await pool.query(
-    'SELECT n.*, p.name AS parent_name, p.type AS parent_type FROM nodes n LEFT JOIN nodes p ON n.parent_id = p.id WHERE n.id = $1',
+  const [nodeRows] = await pool.query(
+    'SELECT n.*, p.name AS parent_name, p.type AS parent_type FROM nodes n LEFT JOIN nodes p ON n.parent_id = p.id WHERE n.id = ?',
     [nodeId]
   );
-  if (nodeResult.rows.length === 0) return null;
-  const node = nodeResult.rows[0];
+  if (nodeRows.length === 0) return null;
+  const node = nodeRows[0];
 
   // 2. Fetch children count
-  const childrenResult = await pool.query(
-    'SELECT COUNT(*) AS cnt FROM nodes WHERE parent_id = $1',
+  const [childrenRows] = await pool.query(
+    'SELECT COUNT(*) AS cnt FROM nodes WHERE parent_id = ?',
     [nodeId]
   );
-  const childCount = parseInt(childrenResult.rows[0].cnt, 10);
+  const childCount = parseInt(childrenRows[0].cnt, 10);
 
   // 3. Fetch phases
-  const phasesResult = await pool.query(
-    'SELECT phase, status, started_at, completed_at FROM node_phases WHERE node_id = $1 ORDER BY phase_order',
+  const [phases] = await pool.query(
+    'SELECT phase, status, started_at, completed_at FROM node_phases WHERE node_id = ? ORDER BY phase_order',
     [nodeId]
   );
-  const phases = phasesResult.rows;
 
   // Determine active/current phase
   const activePhase = phases.find(p => p.status === 'in_progress')
@@ -65,22 +64,21 @@ async function buildNodeContext(pool, nodeId) {
   const phasesInitialized = phases.length > 0;
 
   // 4. Fetch phase artifacts for all phases
-  const artifactsResult = await pool.query(
-    'SELECT phase, artifact_type, artifact_key, data FROM phase_artifacts WHERE node_id = $1',
+  const [artifacts] = await pool.query(
+    'SELECT phase, artifact_type, artifact_key, data FROM phase_artifacts WHERE node_id = ?',
     [nodeId]
   );
   const artifactsByPhase = {};
-  for (const row of artifactsResult.rows) {
+  for (const row of artifacts) {
     if (!artifactsByPhase[row.phase]) artifactsByPhase[row.phase] = [];
     artifactsByPhase[row.phase].push({ type: row.artifact_type, key: row.artifact_key, data: row.data });
   }
 
   // 5. Fetch requirements
-  const reqResult = await pool.query(
-    'SELECT r.*, COUNT(rt.id) AS trace_count FROM requirements r LEFT JOIN requirement_traces rt ON rt.requirement_id = r.id WHERE r.node_id = $1 GROUP BY r.id',
+  const [requirements] = await pool.query(
+    'SELECT r.*, COUNT(rt.id) AS trace_count FROM requirements r LEFT JOIN requirement_traces rt ON rt.requirement_id = r.id WHERE r.node_id = ? GROUP BY r.id',
     [nodeId]
   );
-  const requirements = reqResult.rows;
   const reqTotal = requirements.length;
   const reqVerified = requirements.filter(r => r.status === 'verified').length;
   const reqWithTraces = requirements.filter(r => parseInt(r.trace_count, 10) > 0).length;

@@ -21,12 +21,12 @@ const { getProjectRole } = require('../middleware/rbac');
 
 // ── Helper: check if user can access a team (member or demo) ─────────────────
 async function canAccessTeam(pool, teamId, userId) {
-  const r = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT 1 FROM teams t
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $2
-    WHERE t.id = $1 AND (t.is_demo = TRUE OR tm.user_id = $2)
-  `, [teamId, userId]);
-  return r.rows.length > 0;
+    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+    WHERE t.id = ? AND (t.is_demo = TRUE OR tm.user_id = ?)
+  `, [userId, teamId, userId]);
+  return rows.length > 0;
 }
 
 // ── GET /api/projects ─────────────────────────────────────────────────────────
@@ -34,26 +34,26 @@ router.get('/', async (req, res) => {
   const pool   = req.app.locals.pool;
   const userId = req.user?.id || null;
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT
       p.*,
       t.name AS team_name,
       t.slug AS team_slug,
       t.logo_url AS team_logo_url,
-      COUNT(DISTINCT n.id)::int AS node_count,
+      COUNT(DISTINCT n.id) AS node_count,
       COALESCE(pm.role, CASE WHEN t.is_demo THEN 'viewer' ELSE NULL END) AS user_role
     FROM projects p
     LEFT JOIN teams t ON t.id = p.team_id
     LEFT JOIN nodes n ON n.project_id = p.id
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $1
-    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
+    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
     WHERE t.is_demo = TRUE
-       OR tm.user_id = $1
-       OR pm.user_id = $1
+       OR tm.user_id = ?
+       OR pm.user_id = ?
     GROUP BY p.id, t.id, pm.role
     ORDER BY p.is_demo ASC, p.created_at ASC
-  `, [userId]);
-  res.json({ success: true, projects: result.rows });
+  `, [userId, userId, userId, userId]);
+  res.json({ success: true, projects: rows });
 });
 
 // ── POST /api/projects ────────────────────────────────────────────────────────
@@ -71,34 +71,34 @@ router.post('/', async (req, res) => {
     if (!access) return res.status(403).json({ success: false, message: 'You do not have access to this team' });
   }
 
-  const client = await pool.connect();
+  const conn = await pool.getConnection();
   try {
-    await client.query('BEGIN');
+    await conn.beginTransaction();
 
-    const result = await client.query(
+    const [result] = await conn.query(
       `INSERT INTO projects (name, description, slug, team_id, status, project_mode)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [name, description || null, slug || null, team_id || null, status || 'active', resolvedMode]
     );
-    const project = result.rows[0];
+    const [projectRows] = await conn.query('SELECT * FROM projects WHERE id = ?', [result.insertId]);
+    const project = projectRows[0];
 
     // Auto-add creator as admin in project_members
     if (userId) {
-      await client.query(`
-        INSERT INTO project_members (project_id, user_id, role, invited_by)
-        VALUES ($1, $2, 'admin', $2)
-        ON CONFLICT (project_id, user_id) DO NOTHING
-      `, [project.id, userId]);
+      await conn.query(`
+        INSERT IGNORE INTO project_members (project_id, user_id, role, invited_by)
+        VALUES (?, ?, 'admin', ?)
+      `, [project.id, userId, userId]);
     }
 
-    await client.query('COMMIT');
+    await conn.commit();
     res.status(201).json({ success: true, project: { ...project, user_role: 'admin' } });
   } catch (err) {
-    await client.query('ROLLBACK');
-    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Slug already exists' });
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: 'Slug already exists' });
     throw err;
   } finally {
-    client.release();
+    conn.release();
   }
 });
 
@@ -107,7 +107,7 @@ router.get('/:id', async (req, res) => {
   const pool   = req.app.locals.pool;
   const userId = req.user?.id || null;
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT
       p.*,
       t.name AS team_name,
@@ -116,14 +116,14 @@ router.get('/:id', async (req, res) => {
       COALESCE(pm.role, CASE WHEN t.is_demo THEN 'viewer' ELSE NULL END) AS user_role
     FROM projects p
     LEFT JOIN teams t ON t.id = p.team_id
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $2
-    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $2
-    WHERE p.id = $1
-      AND (t.is_demo = TRUE OR tm.user_id = $2 OR pm.user_id = $2)
-  `, [req.params.id, userId]);
+    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
+    WHERE p.id = ?
+      AND (t.is_demo = TRUE OR tm.user_id = ? OR pm.user_id = ?)
+  `, [userId, userId, req.params.id, userId, userId]);
 
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Project not found' });
-  res.json({ success: true, project: result.rows[0] });
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Project not found' });
+  res.json({ success: true, project: rows[0] });
 });
 
 // ── PUT /api/projects/:id/share ───────────────────────────────────────────────
@@ -148,26 +148,30 @@ router.put('/:id/share', async (req, res) => {
   // Build update
   const updates = ['updated_at = NOW()'];
   const values  = [];
-  let idx = 1;
 
   if (is_public !== undefined) {
-    updates.push(`is_public = $${idx++}`);
+    updates.push(`is_public = ?`);
     values.push(Boolean(is_public));
   }
   if (reset_token) {
-    updates.push(`share_token = gen_random_uuid()`);
+    updates.push(`share_token = UUID()`);
   }
 
   values.push(projectId);
 
-  const result = await pool.query(
-    `UPDATE projects SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, name, is_public, share_token`,
+  await pool.query(
+    `UPDATE projects SET ${updates.join(', ')} WHERE id = ?`,
     values
   );
 
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Project not found' });
+  const [rows] = await pool.query(
+    'SELECT id, name, is_public, share_token FROM projects WHERE id = ?',
+    [projectId]
+  );
 
-  const project = result.rows[0];
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Project not found' });
+
+  const project = rows[0];
   const appBase = process.env.APP_BASE_URL || '';
   const share_url = `${appBase}/share/${project.share_token}`;
 
@@ -188,13 +192,13 @@ router.get('/:id/share', async (req, res) => {
     return res.status(403).json({ success: false, message: 'Admin role required' });
   }
 
-  const result = await pool.query(
-    'SELECT id, name, is_public, share_token FROM projects WHERE id = $1',
+  const [rows] = await pool.query(
+    'SELECT id, name, is_public, share_token FROM projects WHERE id = ?',
     [projectId]
   );
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Project not found' });
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Project not found' });
 
-  const project = result.rows[0];
+  const project = rows[0];
   const appBase = process.env.APP_BASE_URL || '';
   const share_url = `${appBase}/share/${project.share_token}`;
 
@@ -209,31 +213,31 @@ router.get('/:id/nodes', async (req, res) => {
   if (!projectId) return res.status(400).json({ success: false, message: 'Invalid project id' });
 
   // Check project access (demo, team member, or project member)
-  const access = await pool.query(`
+  const [accessRows] = await pool.query(`
     SELECT p.id FROM projects p
     LEFT JOIN teams t ON t.id = p.team_id
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $2
-    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $2
-    WHERE p.id = $1
-      AND (t.is_demo = TRUE OR tm.user_id = $2 OR pm.user_id = $2)
-  `, [projectId, userId]);
-  if (!access.rows.length) return res.status(403).json({ success: false, message: 'Access denied' });
+    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
+    WHERE p.id = ?
+      AND (t.is_demo = TRUE OR tm.user_id = ? OR pm.user_id = ?)
+  `, [userId, userId, projectId, userId, userId]);
+  if (!accessRows.length) return res.status(403).json({ success: false, message: 'Access denied' });
 
-  const result = await pool.query(
-    'SELECT * FROM nodes WHERE project_id = $1 ORDER BY part_number ASC',
+  const [rows] = await pool.query(
+    'SELECT * FROM nodes WHERE project_id = ? ORDER BY part_number ASC',
     [projectId]
   );
 
   // Build tree
   const map   = {};
   const roots = [];
-  result.rows.forEach(r => { map[r.id] = { ...r, children: [] }; });
-  result.rows.forEach(r => {
+  rows.forEach(r => { map[r.id] = { ...r, children: [] }; });
+  rows.forEach(r => {
     if (r.parent_id && map[r.parent_id]) map[r.parent_id].children.push(map[r.id]);
     else roots.push(map[r.id]);
   });
 
-  res.json({ success: true, nodes: roots, count: result.rows.length });
+  res.json({ success: true, nodes: roots, count: rows.length });
 });
 
 module.exports = router;

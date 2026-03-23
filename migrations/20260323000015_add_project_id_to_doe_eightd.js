@@ -4,53 +4,51 @@
  */
 module.exports = {
   name: '20260323000015_add_project_id_to_doe_eightd',
-  async up(client) {
+  async up(conn) {
     // ── doe_studies: add project_id column ──────────────────────────────────
-    await client.query(`
+    await conn.query(`
       ALTER TABLE doe_studies
-        ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
-    `);
+        ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
+    `).catch(() => {});
 
-    // Backfill from linked nodes
-    await client.query(`
+    // Backfill from linked nodes (MySQL UPDATE JOIN syntax)
+    await conn.query(`
       UPDATE doe_studies s
-      SET project_id = n.project_id
-      FROM nodes n
-      WHERE n.id = s.node_id
-        AND s.project_id IS NULL
+      JOIN nodes n ON n.id = s.node_id
+      SET s.project_id = n.project_id
+      WHERE s.project_id IS NULL
         AND n.project_id IS NOT NULL
     `);
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS doe_studies_project_idx ON doe_studies(project_id)
-    `);
+    await conn.query(`
+      CREATE INDEX doe_studies_project_idx ON doe_studies(project_id)
+    `).catch(() => {});
 
     // ── eightd_reports: add project_id column ───────────────────────────────
-    await client.query(`
+    await conn.query(`
       ALTER TABLE eightd_reports
-        ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
-    `);
+        ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
+    `).catch(() => {});
 
-    // Backfill from linked nodes (via eightd_node_links)
-    await client.query(`
+    // Backfill from linked nodes (via eightd_node_links) — MySQL UPDATE JOIN syntax
+    await conn.query(`
       UPDATE eightd_reports r
-      SET project_id = n.project_id
-      FROM eightd_node_links l
+      JOIN eightd_node_links l ON l.report_id = r.id
       JOIN nodes n ON n.id = l.node_id
-      WHERE l.report_id = r.id
-        AND r.project_id IS NULL
+      SET r.project_id = n.project_id
+      WHERE r.project_id IS NULL
         AND n.project_id IS NOT NULL
     `);
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS eightd_reports_project_idx ON eightd_reports(project_id)
-    `);
+    await conn.query(`
+      CREATE INDEX eightd_reports_project_idx ON eightd_reports(project_id)
+    `).catch(() => {});
   },
 
-  async down(client) {
-    await client.query(`ALTER TABLE doe_studies DROP COLUMN IF EXISTS project_id`);
-    await client.query(`ALTER TABLE eightd_reports DROP COLUMN IF EXISTS project_id`);
-    await client.query(`DROP INDEX IF EXISTS doe_studies_project_idx`);
-    await client.query(`DROP INDEX IF EXISTS eightd_reports_project_idx`);
+  async down(conn) {
+    await conn.query(`ALTER TABLE doe_studies DROP COLUMN project_id`).catch(() => {});
+    await conn.query(`ALTER TABLE eightd_reports DROP COLUMN project_id`).catch(() => {});
+    await conn.query(`DROP INDEX doe_studies_project_idx ON doe_studies`).catch(() => {});
+    await conn.query(`DROP INDEX eightd_reports_project_idx ON eightd_reports`).catch(() => {});
   }
 };

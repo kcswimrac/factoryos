@@ -10,7 +10,7 @@
  * Safe to run multiple times (idempotent by design — updates exact URL matches).
  */
 
-exports.up = async (client) => {
+exports.up = async (conn) => {
   // Helper: update renders matching a specific OLD url or a label pattern
   // within demo projects only.
   //
@@ -35,36 +35,36 @@ exports.up = async (client) => {
 
   for (const fix of BAD_URL_FIXES) {
     // Fix in Baja SAE project
-    await client.query(`
-      UPDATE node_renders SET url = $1
-      WHERE url = $2
+    await conn.query(`
+      UPDATE node_renders SET url = ?
+      WHERE url = ?
         AND node_id IN (
           SELECT n.id FROM nodes n
           JOIN projects p ON n.project_id = p.id
-          WHERE p.slug = 'baja-sae-2025' AND p.is_demo = true
+          WHERE p.slug = 'baja-sae-2025' AND p.is_demo = 1
         )
     `, [fix.new_url_baja, fix.old_url]);
 
     // Fix in Heavy Motion / truck project
-    await client.query(`
-      UPDATE node_renders SET url = $1
-      WHERE url = $2
+    await conn.query(`
+      UPDATE node_renders SET url = ?
+      WHERE url = ?
         AND node_id IN (
           SELECT n.id FROM nodes n
           JOIN projects p ON n.project_id = p.id
-          WHERE p.is_demo = true AND p.slug != 'baja-sae-2025' AND p.slug != 'drone-demo'
+          WHERE p.is_demo = 1 AND p.slug != 'baja-sae-2025' AND p.slug != 'drone-demo'
         )
     `, [fix.new_url_truck, fix.old_url]);
 
     // Fix any remaining (fallback for drone or other projects)
-    await client.query(`
-      UPDATE node_renders SET url = $1
-      WHERE url = $2
+    await conn.query(`
+      UPDATE node_renders SET url = ?
+      WHERE url = ?
     `, [fix.new_url_baja, fix.old_url]);
   }
 
   // ── Step 2: Replace ALL Unsplash URLs in demo renders with local images ────
-  // Map each Unsplash photo ID → appropriate local image
+  // Map each Unsplash photo ID -> appropriate local image
 
   const URL_MAP = [
     // Baja SAE vehicle renders
@@ -95,14 +95,14 @@ exports.up = async (client) => {
   ];
 
   for (const [old_url, new_url] of URL_MAP) {
-    await client.query(
-      `UPDATE node_renders SET url = $1 WHERE url = $2`,
+    await conn.query(
+      `UPDATE node_renders SET url = ? WHERE url = ?`,
       [new_url, old_url]
     );
   }
 };
 
-exports.down = async (client) => {
+exports.down = async (conn) => {
   // No point reverting to broken URLs — leave local images in place on rollback
 };
 

@@ -8,9 +8,9 @@
  * This migration removes the old project and its associated nodes.
  */
 
-exports.up = async (client) => {
+exports.up = async (conn) => {
   // Nullify parent_id references before deleting nodes (RESTRICT FK)
-  await client.query(`
+  await conn.query(`
     UPDATE nodes SET parent_id = NULL
     WHERE project_id IN (
       SELECT id FROM projects WHERE slug = 'edison-hybrid-truck'
@@ -18,7 +18,7 @@ exports.up = async (client) => {
   `);
 
   // Delete the nodes
-  await client.query(`
+  await conn.query(`
     DELETE FROM nodes
     WHERE project_id IN (
       SELECT id FROM projects WHERE slug = 'edison-hybrid-truck'
@@ -27,11 +27,11 @@ exports.up = async (client) => {
 
   // Delete the project (cascades to doe_studies, eightd_reports, project_members,
   // project_invites, discovery_objects, discovery_architectures)
-  await client.query(`
+  await conn.query(`
     DELETE FROM projects WHERE slug = 'edison-hybrid-truck'
   `);
 };
 
-exports.down = async (client) => {
+exports.down = async (conn) => {
   // No rollback — this was stale demo data, not schema
 };

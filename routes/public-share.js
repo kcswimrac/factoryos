@@ -20,13 +20,13 @@ const router = express.Router();
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 async function resolvePublicProject(pool, token) {
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT p.*, t.name AS team_name, t.slug AS team_slug, t.logo_url AS team_logo_url
     FROM projects p
     LEFT JOIN teams t ON t.id = p.team_id
-    WHERE p.share_token = $1 AND p.is_public = TRUE
+    WHERE p.share_token = ? AND p.is_public = TRUE
   `, [token]);
-  return result.rows[0] || null;
+  return rows[0] || null;
 }
 
 // ─── GET /api/public/project/:token ─────────────────────────────────────────
@@ -41,30 +41,30 @@ router.get('/project/:token', async (req, res) => {
   }
 
   // Full node tree
-  const nodesResult = await pool.query(
-    'SELECT * FROM nodes WHERE project_id = $1 ORDER BY part_number ASC',
+  const [nodesRows] = await pool.query(
+    'SELECT * FROM nodes WHERE project_id = ? ORDER BY part_number ASC',
     [project.id]
   );
 
   // Phase summary per node (batch query)
   let phaseSummaries = {};
-  if (nodesResult.rows.length > 0) {
-    const nodeIds = nodesResult.rows.map(n => n.id);
-    const phaseRows = await pool.query(`
+  if (nodesRows.length > 0) {
+    const nodeIds = nodesRows.map(n => n.id);
+    const [phaseRows] = await pool.query(`
       SELECT node_id,
-        COUNT(*) FILTER (WHERE status = 'complete')::int    AS complete,
-        COUNT(*) FILTER (WHERE status = 'in_progress')::int AS in_progress,
-        COUNT(*)::int                                        AS total
+        SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END)    AS complete,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
+        COUNT(*)                                                  AS total
       FROM node_phases
-      WHERE node_id = ANY($1)
+      WHERE node_id IN (?)
       GROUP BY node_id
     `, [nodeIds]);
-    phaseRows.rows.forEach(r => {
+    phaseRows.forEach(r => {
       phaseSummaries[r.node_id] = {
-        complete: r.complete,
-        in_progress: r.in_progress,
-        total: r.total,
-        progress_pct: r.total > 0 ? Math.round((r.complete / 7) * 100) : 0
+        complete: parseInt(r.complete),
+        in_progress: parseInt(r.in_progress),
+        total: parseInt(r.total),
+        progress_pct: parseInt(r.total) > 0 ? Math.round((parseInt(r.complete) / 7) * 100) : 0
       };
     });
   }
@@ -72,10 +72,10 @@ router.get('/project/:token', async (req, res) => {
   // Build tree
   const map = {};
   const roots = [];
-  nodesResult.rows.forEach(r => {
+  nodesRows.forEach(r => {
     map[r.id] = { ...r, phase_summary: phaseSummaries[r.id] || null, children: [] };
   });
-  nodesResult.rows.forEach(r => {
+  nodesRows.forEach(r => {
     if (r.parent_id && map[r.parent_id]) map[r.parent_id].children.push(map[r.id]);
     else roots.push(map[r.id]);
   });
@@ -87,7 +87,7 @@ router.get('/project/:token', async (req, res) => {
     success: true,
     project: safeProject,
     nodes: roots,
-    node_count: nodesResult.rows.length
+    node_count: nodesRows.length
   });
 });
 
@@ -100,18 +100,18 @@ router.get('/project/:token/nodes/:nid/phases', async (req, res) => {
   const project = await resolvePublicProject(pool, token);
   if (!project) return res.status(404).json({ success: false, message: 'Project not found or not publicly shared' });
 
-  const nodeResult = await pool.query(
-    'SELECT id, phase_mode FROM nodes WHERE id = $1 AND project_id = $2',
+  const [nodeRows] = await pool.query(
+    'SELECT id, phase_mode FROM nodes WHERE id = ? AND project_id = ?',
     [nid, project.id]
   );
-  if (!nodeResult.rows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
+  if (!nodeRows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
 
-  const phases = await pool.query(
-    'SELECT * FROM node_phases WHERE node_id = $1 ORDER BY phase_order ASC',
+  const [phases] = await pool.query(
+    'SELECT * FROM node_phases WHERE node_id = ? ORDER BY phase_order ASC',
     [nid]
   );
 
-  res.json({ success: true, phases: phases.rows });
+  res.json({ success: true, phases });
 });
 
 // ─── GET /api/public/project/:token/nodes/:nid/requirements ─────────────────
@@ -123,18 +123,18 @@ router.get('/project/:token/nodes/:nid/requirements', async (req, res) => {
   const project = await resolvePublicProject(pool, token);
   if (!project) return res.status(404).json({ success: false, message: 'Project not found or not publicly shared' });
 
-  const nodeResult = await pool.query(
-    'SELECT id FROM nodes WHERE id = $1 AND project_id = $2',
+  const [nodeRows] = await pool.query(
+    'SELECT id FROM nodes WHERE id = ? AND project_id = ?',
     [nid, project.id]
   );
-  if (!nodeResult.rows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
+  if (!nodeRows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
 
-  const reqs = await pool.query(
-    'SELECT * FROM requirements WHERE node_id = $1 ORDER BY created_at ASC',
+  const [reqs] = await pool.query(
+    'SELECT * FROM requirements WHERE node_id = ? ORDER BY created_at ASC',
     [nid]
   );
 
-  res.json({ success: true, requirements: reqs.rows });
+  res.json({ success: true, requirements: reqs });
 });
 
 // ─── GET /api/public/project/:token/nodes/:nid/renders ──────────────────────
@@ -146,18 +146,18 @@ router.get('/project/:token/nodes/:nid/renders', async (req, res) => {
   const project = await resolvePublicProject(pool, token);
   if (!project) return res.status(404).json({ success: false, message: 'Project not found or not publicly shared' });
 
-  const nodeResult = await pool.query(
-    'SELECT id FROM nodes WHERE id = $1 AND project_id = $2',
+  const [nodeRows] = await pool.query(
+    'SELECT id FROM nodes WHERE id = ? AND project_id = ?',
     [nid, project.id]
   );
-  if (!nodeResult.rows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
+  if (!nodeRows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
 
-  const renders = await pool.query(
-    'SELECT * FROM node_renders WHERE node_id = $1 ORDER BY created_at ASC',
+  const [renders] = await pool.query(
+    'SELECT * FROM node_renders WHERE node_id = ? ORDER BY created_at ASC',
     [nid]
   );
 
-  res.json({ success: true, renders: renders.rows });
+  res.json({ success: true, renders });
 });
 
 // ─── GET /api/public/project/:token/nodes/:nid/artifacts ────────────────────
@@ -171,23 +171,23 @@ router.get('/project/:token/nodes/:nid/artifacts', async (req, res) => {
   const project = await resolvePublicProject(pool, token);
   if (!project) return res.status(404).json({ success: false, message: 'Project not found or not publicly shared' });
 
-  const nodeResult = await pool.query(
-    'SELECT id FROM nodes WHERE id = $1 AND project_id = $2',
+  const [nodeRows] = await pool.query(
+    'SELECT id FROM nodes WHERE id = ? AND project_id = ?',
     [nid, project.id]
   );
-  if (!nodeResult.rows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
+  if (!nodeRows.length) return res.status(404).json({ success: false, message: 'Node not found in this project' });
 
-  let query = 'SELECT * FROM phase_artifacts WHERE node_id = $1';
+  let query = 'SELECT * FROM phase_artifacts WHERE node_id = ?';
   const params = [nid];
   if (phase) {
-    query += ' AND phase = $2';
+    query += ' AND phase = ?';
     params.push(phase);
   }
   query += ' ORDER BY phase, created_at ASC';
 
-  const artifacts = await pool.query(query, params);
+  const [artifacts] = await pool.query(query, params);
 
-  res.json({ success: true, artifacts: artifacts.rows });
+  res.json({ success: true, artifacts });
 });
 
 module.exports = router;

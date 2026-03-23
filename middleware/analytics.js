@@ -49,7 +49,7 @@ function trackPageViews(req, res, next) {
 
   pool.query(
     `INSERT INTO page_views (path, referrer, user_agent, ip_hash, utm_source, utm_medium, utm_campaign, user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.path,
       req.headers.referer || null,
@@ -83,7 +83,7 @@ function trackEvent(req, eventName, eventData = {}) {
 
   pool.query(
     `INSERT INTO analytics_events (event_name, event_data, path, ip_hash, user_id, session_id)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+     VALUES (?, ?, ?, ?, ?, ?)`,
     [
       eventName,
       JSON.stringify(eventData),

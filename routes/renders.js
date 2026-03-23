@@ -16,14 +16,14 @@ router.get('/:nodeId/renders', async (req, res) => {
   const { nodeId } = req.params;
 
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, node_id, label, source_type, url, base64, mime_type, file_size, position, created_at
        FROM node_renders
-       WHERE node_id = $1
+       WHERE node_id = ?
        ORDER BY position ASC, created_at ASC`,
       [nodeId]
     );
-    res.json({ success: true, renders: result.rows });
+    res.json({ success: true, renders: rows });
   } catch (e) {
     console.error('[Renders] GET error:', e.message);
     res.status(500).json({ success: false, message: e.message });
@@ -49,19 +49,23 @@ router.post('/:nodeId/renders', requireRole('editor'), async (req, res) => {
   }
 
   try {
-    const posResult = await pool.query(
-      'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM node_renders WHERE node_id = $1',
+    const [posRows] = await pool.query(
+      'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM node_renders WHERE node_id = ?',
       [nodeId]
     );
-    const position = posResult.rows[0].next_pos;
+    const position = posRows[0].next_pos;
 
-    const insertResult = await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO node_renders (node_id, label, source_type, url, base64, mime_type, file_size, position)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, label, source_type, url, mime_type, file_size, position, created_at`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [nodeId, label, source_type, url || null, base64 || null, mime_type, file_size || null, position]
     );
-    res.json({ success: true, render: insertResult.rows[0] });
+    const [insertedRows] = await pool.query(
+      `SELECT id, label, source_type, url, mime_type, file_size, position, created_at
+       FROM node_renders WHERE id = ?`,
+      [result.insertId]
+    );
+    res.json({ success: true, render: insertedRows[0] });
   } catch (e) {
     console.error('[Renders] POST error:', e.message);
     res.status(500).json({ success: false, message: e.message });
@@ -76,7 +80,7 @@ router.patch('/:nodeId/renders/:renderId', requireRole('editor'), async (req, re
 
   try {
     await pool.query(
-      'UPDATE node_renders SET label = $1 WHERE id = $2 AND node_id = $3',
+      'UPDATE node_renders SET label = ? WHERE id = ? AND node_id = ?',
       [label || '', renderId, nodeId]
     );
     res.json({ success: true });
@@ -93,7 +97,7 @@ router.delete('/:nodeId/renders/:renderId', requireRole('editor'), async (req, r
 
   try {
     await pool.query(
-      'DELETE FROM node_renders WHERE id = $1 AND node_id = $2',
+      'DELETE FROM node_renders WHERE id = ? AND node_id = ?',
       [renderId, nodeId]
     );
     res.json({ success: true });

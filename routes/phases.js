@@ -54,81 +54,81 @@ const VALID_STATUSES = ['not_started', 'in_progress', 'complete'];
 async function checkPhaseGate(pool, nodeId, phaseKey) {
   switch (phaseKey) {
     case 'requirements': {
-      const r = await pool.query(
-        'SELECT COUNT(*)::int AS cnt FROM requirements WHERE node_id = $1',
+      const [rows] = await pool.query(
+        'SELECT COUNT(*) AS cnt FROM requirements WHERE node_id = ?',
         [nodeId]
       );
-      if (r.rows[0].cnt < 1) {
+      if (rows[0].cnt < 1) {
         return { ok: false, missing: ['At least 1 requirement must be attached to this node'] };
       }
       return { ok: true, missing: [] };
     }
 
     case 'rnd': {
-      const opts = await pool.query(
-        "SELECT COUNT(*)::int AS cnt FROM phase_artifacts WHERE node_id=$1 AND phase='rnd' AND artifact_type='design_option'",
+      const [optRows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM phase_artifacts WHERE node_id=? AND phase='rnd' AND artifact_type='design_option'",
         [nodeId]
       );
-      const matrix = await pool.query(
-        "SELECT id FROM phase_artifacts WHERE node_id=$1 AND phase='rnd' AND artifact_key='comparison_matrix' AND data->>'content' IS NOT NULL AND data->>'content' != ''",
+      const [matrixRows] = await pool.query(
+        "SELECT id FROM phase_artifacts WHERE node_id=? AND phase='rnd' AND artifact_key='comparison_matrix' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.content')) IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.content')) != ''",
         [nodeId]
       );
       const missing = [];
-      if (opts.rows[0].cnt < 2) missing.push('At least 2 design options required');
-      if (matrix.rows.length === 0) missing.push('Comparison table must be filled out');
+      if (optRows[0].cnt < 2) missing.push('At least 2 design options required');
+      if (matrixRows.length === 0) missing.push('Comparison table must be filled out');
       return { ok: missing.length === 0, missing };
     }
 
     case 'design_cad': {
-      const cad = await pool.query(
-        "SELECT id FROM phase_artifacts WHERE node_id=$1 AND phase='design_cad' AND artifact_key='cad_ref' AND (data->>'url' IS NOT NULL OR data->>'filename' IS NOT NULL)",
+      const [cadRows] = await pool.query(
+        "SELECT id FROM phase_artifacts WHERE node_id=? AND phase='design_cad' AND artifact_key='cad_ref' AND (JSON_UNQUOTE(JSON_EXTRACT(data, '$.url')) IS NOT NULL OR JSON_UNQUOTE(JSON_EXTRACT(data, '$.filename')) IS NOT NULL)",
         [nodeId]
       );
-      if (cad.rows.length === 0) {
+      if (cadRows.length === 0) {
         return { ok: false, missing: ['CAD file upload or external link (Onshape/Fusion360 URL) required'] };
       }
       return { ok: true, missing: [] };
     }
 
     case 'data_collection': {
-      const dp = await pool.query(
-        "SELECT COUNT(*)::int AS cnt FROM phase_artifacts WHERE node_id=$1 AND phase='data_collection' AND artifact_type='data_point'",
+      const [dpRows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM phase_artifacts WHERE node_id=? AND phase='data_collection' AND artifact_type='data_point'",
         [nodeId]
       );
-      if (dp.rows[0].cnt < 1) {
+      if (dpRows[0].cnt < 1) {
         return { ok: false, missing: ['At least 1 data point required (with measurement method, tool, and confidence level)'] };
       }
       return { ok: true, missing: [] };
     }
 
     case 'analysis_cae': {
-      const ae = await pool.query(
-        "SELECT COUNT(*)::int AS cnt FROM phase_artifacts WHERE node_id=$1 AND phase='analysis_cae' AND artifact_type='analysis_entry'",
+      const [aeRows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM phase_artifacts WHERE node_id=? AND phase='analysis_cae' AND artifact_type='analysis_entry'",
         [nodeId]
       );
-      if (ae.rows[0].cnt < 1) {
+      if (aeRows[0].cnt < 1) {
         return { ok: false, missing: ['At least 1 analysis entry required (with assumptions, method, result, and confidence level)'] };
       }
       return { ok: true, missing: [] };
     }
 
     case 'testing_validation': {
-      const tr = await pool.query(
-        "SELECT COUNT(*)::int AS cnt FROM phase_artifacts WHERE node_id=$1 AND phase='testing_validation' AND artifact_type='test_result' AND data->>'requirement_id' IS NOT NULL AND data->>'result' IS NOT NULL",
+      const [trRows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM phase_artifacts WHERE node_id=? AND phase='testing_validation' AND artifact_type='test_result' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.requirement_id')) IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.result')) IS NOT NULL",
         [nodeId]
       );
-      if (tr.rows[0].cnt < 1) {
+      if (trRows[0].cnt < 1) {
         return { ok: false, missing: ['At least 1 test result required, linked to a requirement with a documented result (pass/fail/value)'] };
       }
       return { ok: true, missing: [] };
     }
 
     case 'correlation': {
-      const ce = await pool.query(
-        "SELECT COUNT(*)::int AS cnt FROM phase_artifacts WHERE node_id=$1 AND phase='correlation' AND artifact_type='correlation_entry' AND data->>'predicted' IS NOT NULL AND data->>'actual' IS NOT NULL",
+      const [ceRows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM phase_artifacts WHERE node_id=? AND phase='correlation' AND artifact_type='correlation_entry' AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.predicted')) IS NOT NULL AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.actual')) IS NOT NULL",
         [nodeId]
       );
-      if (ce.rows[0].cnt < 1) {
+      if (ceRows[0].cnt < 1) {
         return { ok: false, missing: ['At least 1 correlation entry required (with predicted value, actual value, and explanation)'] };
       }
       return { ok: true, missing: [] };
@@ -159,37 +159,38 @@ async function computeAllGates(pool, nodeId) {
  */
 async function initializePhases(pool, nodeId) {
   const values = PHASES.map(p =>
-    `($1, '${p.key}', ${p.order}, 'not_started')`
+    `(?, '${p.key}', ${p.order}, 'not_started')`
   ).join(', ');
 
+  const params = PHASES.map(() => nodeId);
+
   await pool.query(`
-    INSERT INTO node_phases (node_id, phase, phase_order, status)
+    INSERT IGNORE INTO node_phases (node_id, phase, phase_order, status)
     VALUES ${values}
-    ON CONFLICT (node_id, phase) DO NOTHING
-  `, [nodeId]);
+  `, params);
 }
 
 /**
  * Walk up the ancestor chain to find the node whose phases this node uses.
  */
 async function resolvePhaseOwner(pool, nodeId) {
-  const nodeResult = await pool.query(
-    'SELECT id, phase_mode, parent_id FROM nodes WHERE id = $1',
+  const [nodeRows] = await pool.query(
+    'SELECT id, phase_mode, parent_id FROM nodes WHERE id = ?',
     [nodeId]
   );
 
-  if (nodeResult.rows.length === 0) return null;
-  const node = nodeResult.rows[0];
+  if (nodeRows.length === 0) return null;
+  const node = nodeRows[0];
 
   if (node.phase_mode === 'own') return node.id;
 
   if (!node.parent_id) return null;
 
-  const ancestorResult = await pool.query(`
+  const [ancestorRows] = await pool.query(`
     WITH RECURSIVE ancestors AS (
       SELECT id, phase_mode, parent_id, 1 AS depth
       FROM nodes
-      WHERE id = $1
+      WHERE id = ?
 
       UNION ALL
 
@@ -203,8 +204,8 @@ async function resolvePhaseOwner(pool, nodeId) {
     LIMIT 1
   `, [node.parent_id]);
 
-  if (ancestorResult.rows.length === 0) return null;
-  return ancestorResult.rows[0].id;
+  if (ancestorRows.length === 0) return null;
+  return ancestorRows[0].id;
 }
 
 // ─── Artifact CRUD ───────────────────────────────────────────────────────────
@@ -220,20 +221,20 @@ router.get('/:id/phases/:phase/artifacts', async (req, res) => {
     return res.status(400).json({ success: false, message: `Invalid phase: ${phase}` });
   }
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [id]);
-  if (nodeResult.rows.length === 0) {
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [id]);
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
   const ownerId = await resolvePhaseOwner(pool, Number(id));
   const targetId = ownerId || Number(id);
 
-  const result = await pool.query(
-    'SELECT * FROM phase_artifacts WHERE node_id=$1 AND phase=$2 ORDER BY created_at ASC',
+  const [rows] = await pool.query(
+    'SELECT * FROM phase_artifacts WHERE node_id=? AND phase=? ORDER BY created_at ASC',
     [targetId, phase]
   );
 
-  res.json({ success: true, artifacts: result.rows });
+  res.json({ success: true, artifacts: rows });
 });
 
 /**
@@ -253,34 +254,40 @@ router.post('/:id/phases/:phase/artifacts', requireRole('editor'), async (req, r
     return res.status(400).json({ success: false, message: 'artifact_type is required' });
   }
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [id]);
-  if (nodeResult.rows.length === 0) {
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [id]);
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
   const ownerId = await resolvePhaseOwner(pool, Number(id));
   const targetId = ownerId || Number(id);
 
-  let result;
+  let rows;
   if (artifact_key) {
     // Upsert for single-record artifacts
-    result = await pool.query(`
+    await pool.query(`
       INSERT INTO phase_artifacts (node_id, phase, artifact_type, artifact_key, data)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (node_id, phase, artifact_key)
-      WHERE artifact_key IS NOT NULL
-      DO UPDATE SET data = $5, artifact_type = $3, updated_at = NOW()
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE data = VALUES(data), artifact_type = VALUES(artifact_type), updated_at = NOW()
     `, [targetId, phase, artifact_type, artifact_key, JSON.stringify(data || {})]);
+    const [selRows] = await pool.query(
+      'SELECT * FROM phase_artifacts WHERE node_id = ? AND phase = ? AND artifact_key = ?',
+      [targetId, phase, artifact_key]
+    );
+    rows = selRows;
   } else {
-    result = await pool.query(`
+    const [result] = await pool.query(`
       INSERT INTO phase_artifacts (node_id, phase, artifact_type, data)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
+      VALUES (?, ?, ?, ?)
     `, [targetId, phase, artifact_type, JSON.stringify(data || {})]);
+    const [selRows] = await pool.query(
+      'SELECT * FROM phase_artifacts WHERE id = ?',
+      [result.insertId]
+    );
+    rows = selRows;
   }
 
-  res.json({ success: true, artifact: result.rows[0] });
+  res.json({ success: true, artifact: rows[0] });
 });
 
 /**
@@ -296,26 +303,27 @@ router.put('/:id/phases/:phase/artifacts/:aid', requireRole('editor'), async (re
     return res.status(400).json({ success: false, message: `Invalid phase: ${phase}` });
   }
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [id]);
-  if (nodeResult.rows.length === 0) {
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [id]);
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
   const ownerId = await resolvePhaseOwner(pool, Number(id));
   const targetId = ownerId || Number(id);
 
-  const result = await pool.query(`
+  const [result] = await pool.query(`
     UPDATE phase_artifacts
-    SET data = $1, updated_at = NOW()
-    WHERE id = $2 AND node_id = $3 AND phase = $4
-    RETURNING *
+    SET data = ?, updated_at = NOW()
+    WHERE id = ? AND node_id = ? AND phase = ?
   `, [JSON.stringify(data || {}), aid, targetId, phase]);
 
-  if (result.rows.length === 0) {
+  if (result.affectedRows === 0) {
     return res.status(404).json({ success: false, message: 'Artifact not found' });
   }
 
-  res.json({ success: true, artifact: result.rows[0] });
+  const [rows] = await pool.query('SELECT * FROM phase_artifacts WHERE id = ?', [aid]);
+
+  res.json({ success: true, artifact: rows[0] });
 });
 
 /**
@@ -329,20 +337,20 @@ router.delete('/:id/phases/:phase/artifacts/:aid', requireRole('editor'), async 
     return res.status(400).json({ success: false, message: `Invalid phase: ${phase}` });
   }
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [id]);
-  if (nodeResult.rows.length === 0) {
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [id]);
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
   const ownerId = await resolvePhaseOwner(pool, Number(id));
   const targetId = ownerId || Number(id);
 
-  const result = await pool.query(
-    'DELETE FROM phase_artifacts WHERE id=$1 AND node_id=$2 AND phase=$3 RETURNING id',
+  const [result] = await pool.query(
+    'DELETE FROM phase_artifacts WHERE id=? AND node_id=? AND phase=?',
     [aid, targetId, phase]
   );
 
-  if (result.rows.length === 0) {
+  if (result.affectedRows === 0) {
     return res.status(404).json({ success: false, message: 'Artifact not found' });
   }
 
@@ -364,15 +372,15 @@ router.get('/:id/phases', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid node id' });
   }
 
-  const nodeResult = await pool.query(
-    'SELECT id, name, part_number, phase_mode, parent_id FROM nodes WHERE id = $1',
+  const [nodeRows] = await pool.query(
+    'SELECT id, name, part_number, phase_mode, parent_id FROM nodes WHERE id = ?',
     [id]
   );
-  if (nodeResult.rows.length === 0) {
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
-  const node = nodeResult.rows[0];
+  const node = nodeRows[0];
   const ownerId = await resolvePhaseOwner(pool, Number(id));
 
   // Compute gate info for all phases (against the owner)
@@ -400,13 +408,13 @@ router.get('/:id/phases', async (req, res) => {
     });
   }
 
-  const phasesResult = await pool.query(
-    'SELECT * FROM node_phases WHERE node_id = $1 ORDER BY phase_order ASC',
+  const [phasesRows] = await pool.query(
+    'SELECT * FROM node_phases WHERE node_id = ? ORDER BY phase_order ASC',
     [ownerId]
   );
 
   const phaseMap = {};
-  phasesResult.rows.forEach(r => { phaseMap[r.phase] = r; });
+  phasesRows.forEach(r => { phaseMap[r.phase] = r; });
 
   const phases = PHASES.map(p => {
     const db = phaseMap[p.key];
@@ -428,9 +436,9 @@ router.get('/:id/phases', async (req, res) => {
 
   let ownerName = null;
   if (ownerId !== Number(id)) {
-    const ownerResult = await pool.query('SELECT name, part_number FROM nodes WHERE id = $1', [ownerId]);
-    if (ownerResult.rows.length > 0) {
-      ownerName = { id: ownerId, name: ownerResult.rows[0].name, part_number: ownerResult.rows[0].part_number };
+    const [ownerRows] = await pool.query('SELECT name, part_number FROM nodes WHERE id = ?', [ownerId]);
+    if (ownerRows.length > 0) {
+      ownerName = { id: ownerId, name: ownerRows[0].name, part_number: ownerRows[0].part_number };
     }
   }
 
@@ -482,11 +490,11 @@ router.put('/:id/phases/:phase', requireRole('editor'), async (req, res) => {
     });
   }
 
-  const nodeResult = await pool.query(
-    'SELECT id, phase_mode, parent_id FROM nodes WHERE id = $1',
+  const [nodeRows] = await pool.query(
+    'SELECT id, phase_mode, parent_id FROM nodes WHERE id = ?',
     [id]
   );
-  if (nodeResult.rows.length === 0) {
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
@@ -506,13 +514,13 @@ router.put('/:id/phases/:phase', requireRole('editor'), async (req, res) => {
     });
   }
 
-  const phasesResult = await pool.query(
-    'SELECT * FROM node_phases WHERE node_id = $1 ORDER BY phase_order ASC',
+  const [phasesRows] = await pool.query(
+    'SELECT * FROM node_phases WHERE node_id = ? ORDER BY phase_order ASC',
     [ownerId]
   );
 
   const phaseMap = {};
-  phasesResult.rows.forEach(r => { phaseMap[r.phase] = r; });
+  phasesRows.forEach(r => { phaseMap[r.phase] = r; });
 
   const targetPhase = PHASES.find(p => p.key === phase);
   const targetOrder = targetPhase.order;
@@ -551,7 +559,7 @@ router.put('/:id/phases/:phase', requireRole('editor'), async (req, res) => {
         await pool.query(`
           UPDATE node_phases
           SET status = 'not_started', started_at = NULL, completed_at = NULL, updated_at = NOW()
-          WHERE node_id = $1 AND phase = ANY($2)
+          WHERE node_id = ? AND phase IN (?)
         `, [ownerId, laterPhases]);
       }
     }
@@ -582,7 +590,7 @@ router.put('/:id/phases/:phase', requireRole('editor'), async (req, res) => {
       await pool.query(`
         UPDATE node_phases
         SET status = 'not_started', started_at = NULL, completed_at = NULL, updated_at = NOW()
-        WHERE node_id = $1 AND phase = ANY($2)
+        WHERE node_id = ? AND phase IN (?)
       `, [ownerId, laterPhases]);
     }
   }
@@ -601,21 +609,21 @@ router.put('/:id/phases/:phase', requireRole('editor'), async (req, res) => {
   if (currentRecord) {
     await pool.query(`
       UPDATE node_phases
-      SET status = $1, started_at = $2, completed_at = $3, notes = $4, updated_at = $5
-      WHERE node_id = $6 AND phase = $7
+      SET status = ?, started_at = ?, completed_at = ?, notes = ?, updated_at = ?
+      WHERE node_id = ? AND phase = ?
     `, [updateFields.status, updateFields.started_at, updateFields.completed_at,
         updateFields.notes, updateFields.updated_at, ownerId, phase]);
   } else {
     await pool.query(`
       INSERT INTO node_phases (node_id, phase, phase_order, status, started_at, completed_at, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [ownerId, phase, targetOrder, updateFields.status,
         updateFields.started_at, updateFields.completed_at, updateFields.notes]);
   }
 
   // Return updated phases
-  const updatedResult = await pool.query(
-    'SELECT * FROM node_phases WHERE node_id = $1 ORDER BY phase_order ASC',
+  const [updatedRows] = await pool.query(
+    'SELECT * FROM node_phases WHERE node_id = ? ORDER BY phase_order ASC',
     [ownerId]
   );
 
@@ -623,7 +631,7 @@ router.put('/:id/phases/:phase', requireRole('editor'), async (req, res) => {
   const gates = await computeAllGates(pool, ownerId);
 
   const phases = PHASES.map(p => {
-    const db = updatedResult.rows.find(r => r.phase === p.key);
+    const db = updatedRows.find(r => r.phase === p.key);
     return {
       phase: p.key,
       label: p.label,
@@ -673,12 +681,12 @@ router.put('/:id/phase-mode', requireRole('editor'), async (req, res) => {
     return res.status(400).json({ success: false, message: 'mode must be "own" or "inherit"' });
   }
 
-  const nodeResult = await pool.query('SELECT id, parent_id, phase_mode FROM nodes WHERE id = $1', [id]);
-  if (nodeResult.rows.length === 0) {
+  const [nodeRows] = await pool.query('SELECT id, parent_id, phase_mode FROM nodes WHERE id = ?', [id]);
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
-  const node = nodeResult.rows[0];
+  const node = nodeRows[0];
 
   if (mode === 'inherit' && !node.parent_id) {
     return res.status(400).json({
@@ -687,7 +695,7 @@ router.put('/:id/phase-mode', requireRole('editor'), async (req, res) => {
     });
   }
 
-  await pool.query('UPDATE nodes SET phase_mode = $1, updated_at = NOW() WHERE id = $2', [mode, id]);
+  await pool.query('UPDATE nodes SET phase_mode = ?, updated_at = NOW() WHERE id = ?', [mode, id]);
 
   if (mode === 'own') {
     await initializePhases(pool, Number(id));
@@ -716,23 +724,23 @@ router.post('/:id/phases/init', requireRole('editor'), async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid node id' });
   }
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [id]);
-  if (nodeResult.rows.length === 0) {
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [id]);
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
-  await pool.query('UPDATE nodes SET phase_mode = $1, updated_at = NOW() WHERE id = $2', ['own', id]);
+  await pool.query('UPDATE nodes SET phase_mode = ?, updated_at = NOW() WHERE id = ?', ['own', id]);
   await initializePhases(pool, Number(id));
 
-  const phasesResult = await pool.query(
-    'SELECT * FROM node_phases WHERE node_id = $1 ORDER BY phase_order ASC',
+  const [phasesRows] = await pool.query(
+    'SELECT * FROM node_phases WHERE node_id = ? ORDER BY phase_order ASC',
     [id]
   );
 
   const gates = await computeAllGates(pool, Number(id));
 
   const phases = PHASES.map(p => {
-    const db = phasesResult.rows.find(r => r.phase === p.key);
+    const db = phasesRows.find(r => r.phase === p.key);
     return {
       phase: p.key,
       label: p.label,

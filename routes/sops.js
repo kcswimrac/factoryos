@@ -21,13 +21,13 @@ const router  = express.Router();
 function pool(req) { return req.app.locals.pool; }
 
 async function q(req, sql, params) {
-  const { rows } = await pool(req).query(sql, params);
+  const [rows] = await pool(req).query(sql, params);
   return rows;
 }
 
 async function getSopOrFail(req, res, id) {
   const rows = await q(req,
-    'SELECT * FROM sops WHERE id = $1', [id]);
+    'SELECT * FROM sops WHERE id = ?', [id]);
   if (!rows.length) {
     res.status(404).json({ success: false, message: 'SOP not found' });
     return null;
@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
     let sql    = 'SELECT * FROM sops';
     const params = [];
     if (project_id) {
-      sql += ' WHERE project_id = $1';
+      sql += ' WHERE project_id = ?';
       params.push(parseInt(project_id, 10));
     }
     sql += ' ORDER BY created_at DESC';
@@ -63,10 +63,9 @@ router.post('/', async (req, res) => {
     if (!title || !title.trim()) {
       return res.status(400).json({ success: false, message: 'title is required' });
     }
-    const rows = await q(req, `
+    const [result] = await pool(req).query(`
       INSERT INTO sops (project_id, title, description, version, revision, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?, ?)
     `, [
       project_id || null,
       title.trim(),
@@ -75,6 +74,7 @@ router.post('/', async (req, res) => {
       revision || 'A',
       status   || 'draft'
     ]);
+    const rows = await q(req, 'SELECT * FROM sops WHERE id = ?', [result.insertId]);
     res.status(201).json({ success: true, sop: rows[0] });
   } catch (err) {
     console.error('[SOP] create error:', err);
@@ -90,7 +90,7 @@ router.get('/:id', async (req, res) => {
     if (!sop) return;
 
     const steps = await q(req,
-      'SELECT * FROM sop_steps WHERE sop_id = $1 ORDER BY step_order ASC',
+      'SELECT * FROM sop_steps WHERE sop_id = ? ORDER BY step_order ASC',
       [sop.id]);
 
     res.json({ success: true, sop, steps });
@@ -109,17 +109,16 @@ router.put('/:id', async (req, res) => {
 
     const { title, description, version, revision, status, linked_nodes } = req.body;
 
-    const rows = await q(req, `
+    await pool(req).query(`
       UPDATE sops SET
-        title        = COALESCE($1, title),
-        description  = COALESCE($2, description),
-        version      = COALESCE($3, version),
-        revision     = COALESCE($4, revision),
-        status       = COALESCE($5, status),
-        linked_nodes = COALESCE($6, linked_nodes),
+        title        = COALESCE(?, title),
+        description  = COALESCE(?, description),
+        version      = COALESCE(?, version),
+        revision     = COALESCE(?, revision),
+        status       = COALESCE(?, status),
+        linked_nodes = COALESCE(?, linked_nodes),
         updated_at   = NOW()
-      WHERE id = $7
-      RETURNING *
+      WHERE id = ?
     `, [
       title       ? title.trim() : null,
       description !== undefined  ? description : null,
@@ -129,6 +128,7 @@ router.put('/:id', async (req, res) => {
       linked_nodes ? JSON.stringify(linked_nodes) : null,
       sop.id
     ]);
+    const rows = await q(req, 'SELECT * FROM sops WHERE id = ?', [sop.id]);
     res.json({ success: true, sop: rows[0] });
   } catch (err) {
     console.error('[SOP] update error:', err);
@@ -142,7 +142,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const sop = await getSopOrFail(req, res, req.params.id);
     if (!sop) return;
-    await q(req, 'DELETE FROM sops WHERE id = $1', [sop.id]);
+    await q(req, 'DELETE FROM sops WHERE id = ?', [sop.id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[SOP] delete error:', err);
@@ -162,25 +162,25 @@ router.put('/:id/steps/reorder', async (req, res) => {
       return res.status(400).json({ success: false, message: 'order must be an array' });
     }
 
-    const client = await pool(req).connect();
+    const conn = await pool(req).getConnection();
     try {
-      await client.query('BEGIN');
+      await conn.beginTransaction();
       for (const item of order) {
-        await client.query(
-          'UPDATE sop_steps SET step_order = $1, updated_at = NOW() WHERE id = $2 AND sop_id = $3',
+        await conn.query(
+          'UPDATE sop_steps SET step_order = ?, updated_at = NOW() WHERE id = ? AND sop_id = ?',
           [item.step_order, item.id, sop.id]
         );
       }
-      await client.query('COMMIT');
+      await conn.commit();
     } catch (e) {
-      await client.query('ROLLBACK');
+      await conn.rollback();
       throw e;
     } finally {
-      client.release();
+      conn.release();
     }
 
     const steps = await q(req,
-      'SELECT * FROM sop_steps WHERE sop_id = $1 ORDER BY step_order ASC',
+      'SELECT * FROM sop_steps WHERE sop_id = ? ORDER BY step_order ASC',
       [sop.id]);
     res.json({ success: true, steps });
   } catch (err) {
@@ -198,16 +198,15 @@ router.post('/:id/steps', async (req, res) => {
 
     // Auto-set step_order to max + 1
     const maxRows = await q(req,
-      'SELECT COALESCE(MAX(step_order), 0) AS mx FROM sop_steps WHERE sop_id = $1',
+      'SELECT COALESCE(MAX(step_order), 0) AS mx FROM sop_steps WHERE sop_id = ?',
       [sop.id]);
     const nextOrder = (maxRows[0].mx || 0) + 1;
 
     const { title, description, tools, hazards, images, step_order } = req.body;
 
-    const rows = await q(req, `
+    const [result] = await pool(req).query(`
       INSERT INTO sop_steps (sop_id, step_order, title, description, tools, hazards, images)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `, [
       sop.id,
       step_order !== undefined ? step_order : nextOrder,
@@ -217,6 +216,7 @@ router.post('/:id/steps', async (req, res) => {
       JSON.stringify(hazards || []),
       JSON.stringify(images  || [])
     ]);
+    const rows = await q(req, 'SELECT * FROM sop_steps WHERE id = ?', [result.insertId]);
     res.status(201).json({ success: true, step: rows[0] });
   } catch (err) {
     console.error('[SOP] add step error:', err);
@@ -233,17 +233,16 @@ router.put('/:id/steps/:stepId', async (req, res) => {
 
     const { title, description, tools, hazards, images, step_order } = req.body;
 
-    const rows = await q(req, `
+    await pool(req).query(`
       UPDATE sop_steps SET
-        title       = COALESCE($1, title),
-        description = COALESCE($2, description),
-        tools       = COALESCE($3, tools),
-        hazards     = COALESCE($4, hazards),
-        images      = COALESCE($5, images),
-        step_order  = COALESCE($6, step_order),
+        title       = COALESCE(?, title),
+        description = COALESCE(?, description),
+        tools       = COALESCE(?, tools),
+        hazards     = COALESCE(?, hazards),
+        images      = COALESCE(?, images),
+        step_order  = COALESCE(?, step_order),
         updated_at  = NOW()
-      WHERE id = $7 AND sop_id = $8
-      RETURNING *
+      WHERE id = ? AND sop_id = ?
     `, [
       title       !== undefined ? title       : null,
       description !== undefined ? description : null,
@@ -255,6 +254,7 @@ router.put('/:id/steps/:stepId', async (req, res) => {
       sop.id
     ]);
 
+    const rows = await q(req, 'SELECT * FROM sop_steps WHERE id = ? AND sop_id = ?', [req.params.stepId, sop.id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'Step not found' });
     }
@@ -272,13 +272,18 @@ router.delete('/:id/steps/:stepId', async (req, res) => {
     const sop = await getSopOrFail(req, res, req.params.id);
     if (!sop) return;
 
-    const rows = await q(req,
-      'DELETE FROM sop_steps WHERE id = $1 AND sop_id = $2 RETURNING id',
+    const existing = await q(req,
+      'SELECT id FROM sop_steps WHERE id = ? AND sop_id = ?',
       [req.params.stepId, sop.id]);
 
-    if (!rows.length) {
+    if (!existing.length) {
       return res.status(404).json({ success: false, message: 'Step not found' });
     }
+
+    await q(req,
+      'DELETE FROM sop_steps WHERE id = ? AND sop_id = ?',
+      [req.params.stepId, sop.id]);
+
     res.json({ success: true });
   } catch (err) {
     console.error('[SOP] delete step error:', err);

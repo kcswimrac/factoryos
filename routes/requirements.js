@@ -33,8 +33,8 @@ const { getProjectRole, getProjectForNode, getProjectForRequirement, getProjectF
 async function assertEditorRole(pool, res, projectId, userId) {
   if (!projectId) return true; // can't resolve, skip check
   // Check demo
-  const proj = await pool.query('SELECT is_demo FROM projects WHERE id = $1', [projectId]);
-  if (proj.rows[0]?.is_demo) {
+  const [projRows] = await pool.query('SELECT is_demo FROM projects WHERE id = ?', [projectId]);
+  if (projRows[0]?.is_demo) {
     res.status(403).json({ success: false, message: 'Demo projects are read-only' });
     return false;
   }
@@ -62,37 +62,37 @@ async function fetchDerivations(pool, reqIds) {
   if (!reqIds || reqIds.length === 0) return { parentsMap: {}, childrenMap: {} };
 
   // Parents: requirements this req was derived FROM
-  const parentsResult = await pool.query(`
+  const [parentsRows] = await pool.query(`
     SELECT d.child_requirement_id, r.id, r.req_id, r.title, r.node_id,
            n.name AS node_name, n.part_number AS node_part_number
     FROM requirement_derivations d
     JOIN requirements r ON r.id = d.parent_requirement_id
     JOIN nodes n ON n.id = r.node_id
-    WHERE d.child_requirement_id = ANY($1)
+    WHERE d.child_requirement_id IN (?)
     ORDER BY r.req_id ASC
   `, [reqIds]);
 
   // Children: requirements derived FROM this req
-  const childrenResult = await pool.query(`
+  const [childrenRows] = await pool.query(`
     SELECT d.parent_requirement_id, r.id, r.req_id, r.title, r.node_id,
            n.name AS node_name, n.part_number AS node_part_number
     FROM requirement_derivations d
     JOIN requirements r ON r.id = d.child_requirement_id
     JOIN nodes n ON n.id = r.node_id
-    WHERE d.parent_requirement_id = ANY($1)
+    WHERE d.parent_requirement_id IN (?)
     ORDER BY r.req_id ASC
   `, [reqIds]);
 
   const parentsMap = {};
   const childrenMap = {};
 
-  parentsResult.rows.forEach(row => {
+  parentsRows.forEach(row => {
     const cid = row.child_requirement_id;
     if (!parentsMap[cid]) parentsMap[cid] = [];
     parentsMap[cid].push({ id: row.id, req_id: row.req_id, title: row.title, node_id: row.node_id, node_name: row.node_name, node_part_number: row.node_part_number });
   });
 
-  childrenResult.rows.forEach(row => {
+  childrenRows.forEach(row => {
     const pid = row.parent_requirement_id;
     if (!childrenMap[pid]) childrenMap[pid] = [];
     childrenMap[pid].push({ id: row.id, req_id: row.req_id, title: row.title, node_id: row.node_id, node_name: row.node_name, node_part_number: row.node_part_number });
@@ -111,17 +111,17 @@ async function setDerivationParents(pool, childId, parentIds) {
   const validParentIds = parentIds.filter(pid => pid && Number(pid) !== childId);
 
   // Delete existing parents for this child
-  await pool.query('DELETE FROM requirement_derivations WHERE child_requirement_id = $1', [childId]);
+  await pool.query('DELETE FROM requirement_derivations WHERE child_requirement_id = ?', [childId]);
 
   if (validParentIds.length === 0) return;
 
   // Verify all parent requirement IDs exist
-  const existCheck = await pool.query('SELECT id FROM requirements WHERE id = ANY($1)', [validParentIds]);
-  const existingIds = existCheck.rows.map(r => r.id);
+  const [existRows] = await pool.query('SELECT id FROM requirements WHERE id IN (?)', [validParentIds]);
+  const existingIds = existRows.map(r => r.id);
 
   for (const pid of existingIds) {
     await pool.query(
-      'INSERT INTO requirement_derivations (parent_requirement_id, child_requirement_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      'INSERT IGNORE INTO requirement_derivations (parent_requirement_id, child_requirement_id) VALUES (?, ?)',
       [pid, childId]
     );
   }
@@ -143,8 +143,8 @@ router.get('/', async (req, res) => {
   }
 
   // Verify node exists
-  const nodeCheck = await pool.query('SELECT id, name, part_number, parent_id FROM nodes WHERE id = $1', [nodeId]);
-  if (nodeCheck.rows.length === 0) {
+  const [nodeCheckRows] = await pool.query('SELECT id, name, part_number, parent_id FROM nodes WHERE id = ?', [nodeId]);
+  if (nodeCheckRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
@@ -153,11 +153,11 @@ router.get('/', async (req, res) => {
 
   if (inherited) {
     // Walk up the ancestor chain
-    const ancestorResult = await pool.query(`
+    const [ancestorRows] = await pool.query(`
       WITH RECURSIVE ancestors AS (
         SELECT id, name, part_number, parent_id, 1 AS depth
         FROM nodes
-        WHERE id = (SELECT parent_id FROM nodes WHERE id = $1)
+        WHERE id = (SELECT parent_id FROM nodes WHERE id = ?)
 
         UNION ALL
 
@@ -168,30 +168,30 @@ router.get('/', async (req, res) => {
       SELECT id, name, part_number, depth FROM ancestors ORDER BY depth ASC
     `, [nodeId]);
 
-    ancestorChain = ancestorResult.rows;
+    ancestorChain = ancestorRows;
     targetNodeIds = [nodeId, ...ancestorChain.map(a => a.id)];
   }
 
   // Fetch requirements for all target nodes
-  const reqs = await pool.query(`
+  const [reqRows] = await pool.query(`
     SELECT r.*,
            n.name AS node_name,
            n.part_number AS node_part_number
     FROM requirements r
     JOIN nodes n ON n.id = r.node_id
-    WHERE r.node_id = ANY($1)
-    ORDER BY r.node_id = $2 DESC, r.created_at ASC
+    WHERE r.node_id IN (?)
+    ORDER BY (r.node_id = ?) DESC, r.created_at ASC
   `, [targetNodeIds, nodeId]);
 
-  const reqIds = reqs.rows.map(r => r.id);
+  const reqIds = reqRows.map(r => r.id);
 
   // Fetch traces
   let tracesMap = {};
   if (reqIds.length > 0) {
-    const traces = await pool.query(`
-      SELECT * FROM requirement_traces WHERE requirement_id = ANY($1) ORDER BY created_at ASC
+    const [traceRows] = await pool.query(`
+      SELECT * FROM requirement_traces WHERE requirement_id IN (?) ORDER BY created_at ASC
     `, [reqIds]);
-    traces.rows.forEach(t => {
+    traceRows.forEach(t => {
       if (!tracesMap[t.requirement_id]) tracesMap[t.requirement_id] = [];
       tracesMap[t.requirement_id].push(t);
     });
@@ -201,7 +201,7 @@ router.get('/', async (req, res) => {
   const { parentsMap, childrenMap } = await fetchDerivations(pool, reqIds);
 
   // Annotate each requirement
-  const requirements = reqs.rows.map(r => ({
+  const requirements = reqRows.map(r => ({
     ...r,
     traces: tracesMap[r.id] || [],
     parents: parentsMap[r.id] || [],
@@ -239,28 +239,28 @@ router.get('/coverage', async (req, res) => {
   }
 
   // Get all ancestor node IDs
-  const ancestorResult = await pool.query(`
+  const [ancestorRows] = await pool.query(`
     WITH RECURSIVE ancestors AS (
-      SELECT id FROM nodes WHERE id = $1
+      SELECT id FROM nodes WHERE id = ?
       UNION ALL
       SELECT n.id FROM nodes n INNER JOIN ancestors a ON n.id = (SELECT parent_id FROM nodes WHERE id = a.id)
     )
     SELECT id FROM ancestors
   `, [nodeId]);
 
-  const nodeIds = ancestorResult.rows.map(r => r.id);
+  const nodeIds = ancestorRows.map(r => r.id);
 
-  const stats = await pool.query(`
+  const [statsRows] = await pool.query(`
     SELECT
-      COUNT(*) FILTER (WHERE node_id = $1)                     AS own_total,
-      COUNT(*) FILTER (WHERE node_id = $1 AND status = 'verified') AS own_verified,
-      COUNT(*)                                                  AS all_total,
-      COUNT(*) FILTER (WHERE status = 'verified')              AS all_verified
+      SUM(CASE WHEN node_id = ? THEN 1 ELSE 0 END)                              AS own_total,
+      SUM(CASE WHEN node_id = ? AND status = 'verified' THEN 1 ELSE 0 END)      AS own_verified,
+      COUNT(*)                                                                    AS all_total,
+      SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END)                      AS all_verified
     FROM requirements
-    WHERE node_id = ANY($2)
-  `, [nodeId, nodeIds]);
+    WHERE node_id IN (?)
+  `, [nodeId, nodeId, nodeIds]);
 
-  res.json({ success: true, coverage: stats.rows[0] });
+  res.json({ success: true, coverage: statsRows[0] });
 });
 
 /**
@@ -277,17 +277,17 @@ router.get('/project', async (req, res) => {
     return res.status(400).json({ success: false, message: 'project_id query param required' });
   }
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT r.id, r.req_id, r.title, r.node_id,
            n.name AS node_name, n.part_number AS node_part_number
     FROM requirements r
     JOIN nodes n ON n.id = r.node_id
     JOIN project_nodes pn ON pn.node_id = n.id
-    WHERE pn.project_id = $1
+    WHERE pn.project_id = ?
     ORDER BY r.req_id ASC
   `, [projectId]);
 
-  res.json({ success: true, requirements: result.rows });
+  res.json({ success: true, requirements: rows });
 });
 
 /**
@@ -332,8 +332,8 @@ router.post('/', async (req, res) => {
   }
 
   // Verify node exists
-  const nodeCheck = await pool.query('SELECT id FROM nodes WHERE id = $1', [node_id]);
-  if (nodeCheck.rows.length === 0) {
+  const [nodeCheckRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [node_id]);
+  if (nodeCheckRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
@@ -341,19 +341,26 @@ router.post('/', async (req, res) => {
   const projectId = await getProjectForNode(pool, node_id);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-  // Insert with auto-generated req_id using sequence
-  const result = await pool.query(`
-    WITH inserted AS (
-      INSERT INTO requirements (node_id, req_id, title, description, verification_method, status, priority, source)
-      VALUES ($1, 'REQ-' || LPAD(nextval('req_id_seq')::text, 4, '0'), $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    )
-    SELECT r.*, n.name AS node_name, n.part_number AS node_part_number
-    FROM inserted r
-    JOIN nodes n ON n.id = r.node_id
-  `, [node_id, title, description || null, verification_method, status, priority, source || null]);
+  // Get next sequence value for req_id
+  // Use a table-based sequence or just generate from MAX
+  const [seqRows] = await pool.query('SELECT COALESCE(MAX(CAST(SUBSTRING(req_id, 5) AS UNSIGNED)), 0) + 1 AS next_val FROM requirements');
+  const nextVal = seqRows[0].next_val;
+  const reqIdStr = 'REQ-' + String(nextVal).padStart(4, '0');
 
-  const newReq = result.rows[0];
+  const [insertResult] = await pool.query(
+    `INSERT INTO requirements (node_id, req_id, title, description, verification_method, status, priority, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [node_id, reqIdStr, title, description || null, verification_method, status, priority, source || null]
+  );
+
+  const [newReqRows] = await pool.query(`
+    SELECT r.*, n.name AS node_name, n.part_number AS node_part_number
+    FROM requirements r
+    JOIN nodes n ON n.id = r.node_id
+    WHERE r.id = ?
+  `, [insertResult.insertId]);
+
+  const newReq = newReqRows[0];
 
   // Set derivation parents if provided
   if (Array.isArray(parent_requirement_ids) && parent_requirement_ids.length > 0) {
@@ -387,8 +394,8 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid requirement id' });
   }
 
-  const existing = await pool.query('SELECT * FROM requirements WHERE id = $1', [id]);
-  if (existing.rows.length === 0) {
+  const [existingRows] = await pool.query('SELECT * FROM requirements WHERE id = ?', [id]);
+  if (existingRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Requirement not found' });
   }
 
@@ -419,14 +426,13 @@ router.put('/:id', async (req, res) => {
 
   const updates = [];
   const values = [];
-  let i = 1;
 
-  if (title !== undefined) { updates.push(`title = $${i++}`); values.push(title); }
-  if (description !== undefined) { updates.push(`description = $${i++}`); values.push(description || null); }
-  if (verification_method !== undefined) { updates.push(`verification_method = $${i++}`); values.push(verification_method); }
-  if (status !== undefined) { updates.push(`status = $${i++}`); values.push(status); }
-  if (priority !== undefined) { updates.push(`priority = $${i++}`); values.push(priority); }
-  if (source !== undefined) { updates.push(`source = $${i++}`); values.push(source || null); }
+  if (title !== undefined) { updates.push(`title = ?`); values.push(title); }
+  if (description !== undefined) { updates.push(`description = ?`); values.push(description || null); }
+  if (verification_method !== undefined) { updates.push(`verification_method = ?`); values.push(verification_method); }
+  if (status !== undefined) { updates.push(`status = ?`); values.push(status); }
+  if (priority !== undefined) { updates.push(`priority = ?`); values.push(priority); }
+  if (source !== undefined) { updates.push(`source = ?`); values.push(source || null); }
 
   // Update derivation parents if provided
   if (Array.isArray(parent_requirement_ids)) {
@@ -442,18 +448,19 @@ router.put('/:id', async (req, res) => {
     updates.push(`updated_at = NOW()`);
     values.push(id);
 
-    const result = await pool.query(
-      `UPDATE requirements SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+    await pool.query(
+      `UPDATE requirements SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
-    updatedReq = result.rows[0];
+    const [updatedRows] = await pool.query('SELECT * FROM requirements WHERE id = ?', [id]);
+    updatedReq = updatedRows[0];
   } else {
-    updatedReq = existing.rows[0];
+    updatedReq = existingRows[0];
   }
 
   // Fetch traces
-  const traces = await pool.query(
-    'SELECT * FROM requirement_traces WHERE requirement_id = $1 ORDER BY created_at ASC',
+  const [traceRows] = await pool.query(
+    'SELECT * FROM requirement_traces WHERE requirement_id = ? ORDER BY created_at ASC',
     [id]
   );
 
@@ -464,7 +471,7 @@ router.put('/:id', async (req, res) => {
     success: true,
     requirement: {
       ...updatedReq,
-      traces: traces.rows,
+      traces: traceRows,
       parents: parentsMap[Number(id)] || [],
       children: childrenMap[Number(id)] || []
     }
@@ -482,8 +489,8 @@ router.delete('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid requirement id' });
   }
 
-  const existing = await pool.query('SELECT * FROM requirements WHERE id = $1', [id]);
-  if (existing.rows.length === 0) {
+  const [existingRows] = await pool.query('SELECT * FROM requirements WHERE id = ?', [id]);
+  if (existingRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Requirement not found' });
   }
 
@@ -491,8 +498,8 @@ router.delete('/:id', async (req, res) => {
   const projectId = await getProjectForRequirement(pool, id);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-  await pool.query('DELETE FROM requirements WHERE id = $1', [id]);
-  res.json({ success: true, message: 'Requirement deleted', requirement: existing.rows[0] });
+  await pool.query('DELETE FROM requirements WHERE id = ?', [id]);
+  res.json({ success: true, message: 'Requirement deleted', requirement: existingRows[0] });
 });
 
 /**
@@ -511,8 +518,8 @@ router.post('/:id/traces', async (req, res) => {
     return res.status(400).json({ success: false, message: 'phase is required' });
   }
 
-  const existing = await pool.query('SELECT id FROM requirements WHERE id = $1', [id]);
-  if (existing.rows.length === 0) {
+  const [existingRows] = await pool.query('SELECT id FROM requirements WHERE id = ?', [id]);
+  if (existingRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Requirement not found' });
   }
 
@@ -520,12 +527,14 @@ router.post('/:id/traces', async (req, res) => {
   const projectId = await getProjectForRequirement(pool, id);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-  const result = await pool.query(
-    `INSERT INTO requirement_traces (requirement_id, phase, evidence) VALUES ($1, $2, $3) RETURNING *`,
+  const [insertResult] = await pool.query(
+    `INSERT INTO requirement_traces (requirement_id, phase, evidence) VALUES (?, ?, ?)`,
     [id, phase.trim(), evidence ? evidence.trim() : null]
   );
 
-  res.status(201).json({ success: true, trace: result.rows[0] });
+  const [traceRows] = await pool.query('SELECT * FROM requirement_traces WHERE id = ?', [insertResult.insertId]);
+
+  res.status(201).json({ success: true, trace: traceRows[0] });
 });
 
 /**
@@ -539,8 +548,8 @@ router.delete('/traces/:traceId', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid trace id' });
   }
 
-  const existing = await pool.query('SELECT * FROM requirement_traces WHERE id = $1', [traceId]);
-  if (existing.rows.length === 0) {
+  const [existingRows] = await pool.query('SELECT * FROM requirement_traces WHERE id = ?', [traceId]);
+  if (existingRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Trace not found' });
   }
 
@@ -548,7 +557,7 @@ router.delete('/traces/:traceId', async (req, res) => {
   const projectId = await getProjectForTrace(pool, traceId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-  await pool.query('DELETE FROM requirement_traces WHERE id = $1', [traceId]);
+  await pool.query('DELETE FROM requirement_traces WHERE id = ?', [traceId]);
   res.json({ success: true, message: 'Trace deleted' });
 });
 
@@ -572,12 +581,12 @@ router.post('/:id/derivations', async (req, res) => {
     return res.status(400).json({ success: false, message: 'A requirement cannot be derived from itself' });
   }
 
-  const childCheck = await pool.query('SELECT id FROM requirements WHERE id = $1', [childId]);
-  if (childCheck.rows.length === 0) {
+  const [childCheckRows] = await pool.query('SELECT id FROM requirements WHERE id = ?', [childId]);
+  if (childCheckRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Requirement not found' });
   }
-  const parentCheck = await pool.query('SELECT id FROM requirements WHERE id = $1', [parent_requirement_id]);
-  if (parentCheck.rows.length === 0) {
+  const [parentCheckRows] = await pool.query('SELECT id FROM requirements WHERE id = ?', [parent_requirement_id]);
+  if (parentCheckRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Parent requirement not found' });
   }
 
@@ -585,7 +594,7 @@ router.post('/:id/derivations', async (req, res) => {
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
   await pool.query(
-    'INSERT INTO requirement_derivations (parent_requirement_id, child_requirement_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    'INSERT IGNORE INTO requirement_derivations (parent_requirement_id, child_requirement_id) VALUES (?, ?)',
     [parent_requirement_id, childId]
   );
 
@@ -609,7 +618,7 @@ router.delete('/:id/derivations/:parentId', async (req, res) => {
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
   await pool.query(
-    'DELETE FROM requirement_derivations WHERE parent_requirement_id = $1 AND child_requirement_id = $2',
+    'DELETE FROM requirement_derivations WHERE parent_requirement_id = ? AND child_requirement_id = ?',
     [parentId, childId]
   );
 

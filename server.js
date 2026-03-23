@@ -1,20 +1,21 @@
 const express = require('express');
-const { Pool } = require('pg');
+const mysql = require('mysql2/promise');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Fail fast if DATABASE_URL is missing
-if (!process.env.DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL environment variable is required');
-  process.exit(1);
-}
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false }
+// Create MySQL connection pool
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306', 10),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'factoryos',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
 // Make pool available to all route handlers via req.app.locals.pool
@@ -30,7 +31,6 @@ const { trackPageViews } = require('./middleware/analytics');
 app.use(trackPageViews);
 
 // Health check endpoint (required for Render)
-// Note: Does NOT query database to allow Neon auto-suspend
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
 });
@@ -125,12 +125,12 @@ app.get('/api/nodes/:nodeId/sops', optionalAuth, async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const nodeId = parseInt(req.params.nodeId, 10);
-    const { rows } = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, project_id, title, description, version, revision, status, linked_nodes, created_at, updated_at
        FROM sops
-       WHERE linked_nodes @> $1::jsonb
+       WHERE JSON_CONTAINS(linked_nodes, ?)
        ORDER BY title ASC`,
-      [JSON.stringify([nodeId])]
+      [JSON.stringify(nodeId)]
     );
     res.json({ success: true, sops: rows });
   } catch (err) {
@@ -199,16 +199,13 @@ app.post('/api/invest/contact', async (req, res) => {
     if (!name || !email) {
       return res.status(400).json({ success: false, message: 'Name and email are required.' });
     }
-    // Log to database for tracking
     try {
       await pool.query(
-        `INSERT INTO investor_contacts (name, email, firm, investor_type, message, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
-         ON CONFLICT DO NOTHING`,
+        `INSERT IGNORE INTO investor_contacts (name, email, firm, investor_type, message, created_at)
+         VALUES (?, ?, ?, ?, ?, NOW())`,
         [name, email, firm || null, type || null, message || null]
       );
     } catch (dbErr) {
-      // Table may not exist yet — log and continue (don't block the UX)
       console.log('[Invest] DB log skipped:', dbErr.message);
     }
     console.log(`[Invest] Contact: ${name} <${email}> | ${firm || 'no firm'} | ${type || 'unknown'}`);

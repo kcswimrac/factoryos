@@ -8,14 +8,14 @@
 
 module.exports = {
   name: '20260323000013_remove_demo_renders',
-  up: async (client) => {
-    await client.query(`
+  up: async (conn) => {
+    await conn.query(`
       DELETE FROM node_renders
       WHERE source_type = 'url'
         AND url LIKE '/images/demo/%'
     `);
   },
-  down: async (client) => {
+  down: async (conn) => {
     // No rollback — demo renders are re-inserted by running the demo seed again.
   }
 };

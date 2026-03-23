@@ -1,42 +1,42 @@
 /**
  * Migration: 8D Problem-Solving tables
  *
- * eightd_reports  – standalone 8D reports (disciplines stored as JSONB)
+ * eightd_reports  – standalone 8D reports (disciplines stored as JSON)
  * eightd_node_links – many-to-many link between reports and nodes
  */
 module.exports = {
   name: 'create_eightd_tables',
-  up: async (client) => {
-    await client.query(`
+  up: async (conn) => {
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS eightd_reports (
-        id          SERIAL PRIMARY KEY,
+        id          INT AUTO_INCREMENT PRIMARY KEY,
         title       VARCHAR(500) NOT NULL,
         status      VARCHAR(20)  NOT NULL DEFAULT 'open',
-        disciplines JSONB        NOT NULL DEFAULT '{}',
-        created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-        updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        disciplines JSON         NOT NULL,
+        created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS eightd_reports_status_idx ON eightd_reports(status)
-    `);
+    await conn.query(`
+      CREATE INDEX eightd_reports_status_idx ON eightd_reports(status)
+    `).catch(() => {});
 
-    await client.query(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS eightd_node_links (
-        id         SERIAL PRIMARY KEY,
+        id         INT AUTO_INCREMENT PRIMARY KEY,
         report_id  INTEGER NOT NULL REFERENCES eightd_reports(id) ON DELETE CASCADE,
         node_id    INTEGER NOT NULL REFERENCES nodes(id)          ON DELETE CASCADE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(report_id, node_id)
       )
     `);
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS eightd_node_links_node_idx   ON eightd_node_links(node_id)
-    `);
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS eightd_node_links_report_idx ON eightd_node_links(report_id)
-    `);
+    await conn.query(`
+      CREATE INDEX eightd_node_links_node_idx   ON eightd_node_links(node_id)
+    `).catch(() => {});
+    await conn.query(`
+      CREATE INDEX eightd_node_links_report_idx ON eightd_node_links(report_id)
+    `).catch(() => {});
   }
 };
