@@ -1,12 +1,16 @@
 {
-  "name": "express-postgres-starter",
+  "name": "factoryos",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "build": "npm run migrate",
-    "migrate": "node migrate.js"
+    "start": "npm run migrate && node server.js",
+    "dev": "npm run dev:backend & npm run dev:frontend",
+    "dev:backend": "node server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run migrate && cd frontend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "migrate": "node migrate.js",
+    "preview": "cd frontend && npm run preview"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -14,5 +18,8 @@
     "jsonwebtoken": "^9.0.3",
     "openai": "^4.77.0",
     "mysql2": "^3.15.3"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
   }
 }

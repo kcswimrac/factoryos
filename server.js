@@ -48,6 +48,10 @@ app.use('/api/auth', authRouter);
 const demoSeedRouter = require('./routes/demo-seed');
 app.use('/api/demo/seed', demoSeedRouter);
 
+// ── Early access signups (public, no auth required) ────────────────────────────
+const earlyAccessRouter = require('./routes/early-access');
+app.use('/api/early-access', earlyAccessRouter);
+
 // ── Public share (unauthenticated read-only) ─────────────────────────────────
 const publicShareRouter = require('./routes/public-share');
 app.use('/api/public', publicShareRouter);
