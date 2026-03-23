@@ -5,8 +5,8 @@ const { getProjectRole, getProjectForNode, getProjectForDoeStudy } = require('..
 // ── RBAC helper for DOE mutations ────────────────────────────────────────────
 async function assertEditorRole(pool, res, projectId, userId) {
   if (!projectId) return true;
-  const proj = await pool.query('SELECT is_demo FROM projects WHERE id = $1', [projectId]);
-  if (proj.rows[0]?.is_demo) {
+  const [projRows] = await pool.query('SELECT is_demo FROM projects WHERE id = ?', [projectId]);
+  if (projRows[0]?.is_demo) {
     res.status(403).json({ success: false, message: 'Demo projects are read-only' });
     return false;
   }
@@ -24,13 +24,13 @@ async function assertEditorRole(pool, res, projectId, userId) {
 
 // Helper: get project from any DOE entity (factor/response/run) via its study
 async function getProjectForDoeEntity(pool, table, idField, entityId) {
-  const r = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT n.project_id FROM ${table} e
     JOIN doe_studies s ON s.id = e.study_id
     LEFT JOIN nodes n ON n.id = s.node_id
-    WHERE e.${idField} = $1
+    WHERE e.${idField} = ?
   `, [entityId]);
-  return r.rows[0]?.project_id ? Number(r.rows[0].project_id) : null;
+  return rows[0]?.project_id ? Number(rows[0].project_id) : null;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -352,7 +352,7 @@ router.get('/studies', async (req, res) => {
     }
     query += ' ORDER BY s.updated_at DESC';
 
-    const result = await pool.query(query, params);
+    const [result] = await pool.query(query, params);
     res.json({ success: true, studies: result.rows });
   } catch (err) {
     console.error('[DOE] list studies error', err);
@@ -374,17 +374,15 @@ router.post('/studies', async (req, res) => {
     // Resolve project_id: use provided value, or derive from linked node
     let resolvedProjectId = project_id ? parseInt(project_id) : null;
     if (!resolvedProjectId && node_id) {
-      const nodeRes = await pool.query('SELECT project_id FROM nodes WHERE id = $1', [parseInt(node_id)]);
-      resolvedProjectId = nodeRes.rows[0]?.project_id || null;
+      const [nodeRes] = await pool.query('SELECT project_id FROM nodes WHERE id = ?', [parseInt(node_id)]);
+      resolvedProjectId = nodeRes[0]?.project_id || null;
     }
 
-    const result = await pool.query(
-      `INSERT INTO doe_studies (title, objective, hypothesis, experiment_goal, node_id, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+    const [result] = await pool.query(
+      `INSERT INTO doe_studies (title, objective, hypothesis, experiment_goal, node_id, project_id) VALUES (?, ?, ?, ?, ?, ?)`,
       [title.trim(), objective || null, hypothesis.trim(), experiment_goal || 'screening', node_id || null, resolvedProjectId]
     );
-    res.status(201).json({ success: true, study: result.rows[0] });
+    res.status(201).json({ success: true, study: result[0] });
   } catch (err) {
     console.error('[DOE] create study error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -396,24 +394,24 @@ router.get('/studies/:id', async (req, res) => {
   const pool = req.app.locals.pool;
   const id = parseInt(req.params.id);
   try {
-    const studyRes = await pool.query(
+    const [studyRes] = await pool.query(
       `SELECT s.*, n.name AS node_name, n.part_number AS node_part_number
        FROM doe_studies s
        LEFT JOIN nodes n ON n.id = s.node_id
-       WHERE s.id = $1`,
+       WHERE s.id = ?`,
       [id]
     );
-    if (!studyRes.rows.length) {
+    if (!studyRes.length) {
       return res.status(404).json({ success: false, message: 'Study not found' });
     }
 
     const [factorsRes, responsesRes, runsRes, resultsRes, constraintsRes, decisionRes] = await Promise.all([
-      pool.query(`SELECT * FROM doe_factors     WHERE study_id = $1 ORDER BY sort_order, id`, [id]),
-      pool.query(`SELECT * FROM doe_responses   WHERE study_id = $1 ORDER BY sort_order, id`, [id]),
-      pool.query(`SELECT * FROM doe_runs        WHERE study_id = $1 ORDER BY run_number`,     [id]),
-      pool.query(`SELECT rr.* FROM doe_run_results rr JOIN doe_runs r ON r.id = rr.run_id WHERE r.study_id = $1`, [id]),
-      pool.query(`SELECT * FROM doe_constraints WHERE study_id = $1 ORDER BY id`,             [id]),
-      pool.query(`SELECT * FROM doe_decisions   WHERE study_id = $1 LIMIT 1`,                 [id]),
+      pool.query(`SELECT * FROM doe_factors     WHERE study_id = ? ORDER BY sort_order, id`, [id]),
+      pool.query(`SELECT * FROM doe_responses   WHERE study_id = ? ORDER BY sort_order, id`, [id]),
+      pool.query(`SELECT * FROM doe_runs        WHERE study_id = ? ORDER BY run_number`,     [id]),
+      pool.query(`SELECT rr.* FROM doe_run_results rr JOIN doe_runs r ON r.id = rr.run_id WHERE r.study_id = ?`, [id]),
+      pool.query(`SELECT * FROM doe_constraints WHERE study_id = ? ORDER BY id`,             [id]),
+      pool.query(`SELECT * FROM doe_decisions   WHERE study_id = ? LIMIT 1`,                 [id]),
     ]);
 
     const resultsByRun = {};
@@ -422,16 +420,16 @@ router.get('/studies/:id', async (req, res) => {
       resultsByRun[r.run_id].push(r);
     });
 
-    const runs = runsRes.rows.map(function(run) {
+    const runs = runsRes.map(function(run) {
       return Object.assign({}, run, { results: resultsByRun[run.id] || [] });
     });
 
-    const study = Object.assign({}, studyRes.rows[0], {
+    const study = Object.assign({}, studyRes[0], {
       factors:     factorsRes.rows,
       responses:   responsesRes.rows,
       runs:        runs,
       constraints: constraintsRes.rows,
-      decision:    decisionRes.rows[0] || null,
+      decision:    decisionRes[0] || null,
     });
 
     res.json({ success: true, study });
@@ -477,14 +475,14 @@ router.put('/studies/:id', async (req, res) => {
   values.push(id);
 
   try {
-    const result = await pool.query(
-      `UPDATE doe_studies SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    const [result] = await pool.query(
+      `UPDATE doe_studies SET ${fields.join(', ')} WHERE id = $${idx}`,
       values
     );
-    if (!result.rows.length) {
+    if (!result.length) {
       return res.status(404).json({ success: false, message: 'Study not found' });
     }
-    res.json({ success: true, study: result.rows[0] });
+    res.json({ success: true, study: result[0] });
   } catch (err) {
     console.error('[DOE] update study error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -499,8 +497,8 @@ router.delete('/studies/:id', async (req, res) => {
   const projectId = await getProjectForDoeStudy(pool, id);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(`DELETE FROM doe_studies WHERE id = $1 RETURNING id`, [id]);
-    if (!result.rows.length) {
+    const [result] = await pool.query(`DELETE FROM doe_studies WHERE id = ?
+    if (!result.length) {
       return res.status(404).json({ success: false, message: 'Study not found' });
     }
     res.json({ success: true, message: 'Study deleted' });
@@ -519,22 +517,22 @@ router.get('/studies/:id/design-recommendation', async (req, res) => {
   const pool = req.app.locals.pool;
   const id = parseInt(req.params.id);
   try {
-    const studyRes = await pool.query(`SELECT experiment_goal FROM doe_studies WHERE id = $1`, [id]);
-    if (!studyRes.rows.length) return res.status(404).json({ success: false, message: 'Study not found' });
+    const [studyRes] = await pool.query(`SELECT experiment_goal FROM doe_studies WHERE id = ?`, [id]);
+    if (!studyRes.length) return res.status(404).json({ success: false, message: 'Study not found' });
 
-    const factorsRes = await pool.query(`SELECT id, name, levels, factor_type FROM doe_factors WHERE study_id = $1`, [id]);
-    const k = factorsRes.rows.length;
-    const goal = studyRes.rows[0].experiment_goal || 'screening';
+    const [factorsRes] = await pool.query(`SELECT id, name, levels, factor_type FROM doe_factors WHERE study_id = ?`, [id]);
+    const k = factorsRes.length;
+    const goal = studyRes[0].experiment_goal || 'screening';
 
     const rec = recommendDesign(k, goal);
 
     // Compute run counts for each option
     var runCounts = {};
-    var isContinuous = factorsRes.rows.some(function(f) { return f.factor_type === 'continuous'; });
+    var isContinuous = factorsRes.some(function(f) { return f.factor_type === 'continuous'; });
 
     if (k >= 2 && k <= 7) {
       // Full factorial count (only if reasonable)
-      var ffCount = factorsRes.rows.reduce(function(acc, f) {
+      var ffCount = factorsRes.reduce(function(acc, f) {
         return acc * (f.levels && f.levels.length ? f.levels.length : 2);
       }, 1);
       if (ffCount <= 256) runCounts.full_factorial = ffCount;
@@ -581,15 +579,15 @@ router.post('/studies/:id/generate-design', async (req, res) => {
   if (!await assertEditorRole(pool, res, projectId0, req.user?.id)) return;
 
   try {
-    const studyRes = await pool.query(`SELECT * FROM doe_studies WHERE id = $1`, [id]);
-    if (!studyRes.rows.length) return res.status(404).json({ success: false, message: 'Study not found' });
+    const [studyRes] = await pool.query(`SELECT * FROM doe_studies WHERE id = ?`, [id]);
+    if (!studyRes.length) return res.status(404).json({ success: false, message: 'Study not found' });
 
-    const factorsRes = await pool.query(
+    const [factorsRes] = await pool.query(
       `SELECT id, name, unit, levels, factor_type, min_value, max_value, center_value
-       FROM doe_factors WHERE study_id = $1 ORDER BY sort_order, id`,
+       FROM doe_factors WHERE study_id = ? ORDER BY sort_order, id`,
       [id]
     );
-    const factors = factorsRes.rows.map(function(f) {
+    const factors = factorsRes.map(function(f) {
       return Object.assign({}, f, {
         levels: Array.isArray(f.levels) ? f.levels : (f.levels || []),
         min_value: f.min_value, max_value: f.max_value, center_value: f.center_value
@@ -629,22 +627,21 @@ router.post('/studies/:id/generate-design', async (req, res) => {
       await client.query('BEGIN');
 
       if (clear_existing) {
-        await client.query(`DELETE FROM doe_runs WHERE study_id = $1`, [id]);
+        await client.query(`DELETE FROM doe_runs WHERE study_id = ?`, [id]);
       }
 
       const insertedRuns = [];
       for (const run of runs) {
         const r = await client.query(
-          `INSERT INTO doe_runs (study_id, run_number, factor_settings, status, run_order)
-           VALUES ($1, $2, $3, 'planned', $4) RETURNING *`,
+          `INSERT INTO doe_runs (study_id, run_number, factor_settings, status, run_order) VALUES (?, ?, ?, 'planned', ?)`,
           [id, run.run_number, JSON.stringify(run.factor_settings), run.run_order]
         );
-        insertedRuns.push(r.rows[0]);
+        insertedRuns.push(r[0]);
       }
 
       // Update study design_type + resolution
       await client.query(
-        `UPDATE doe_studies SET design_type = $1, resolution = $2, randomize_runs = $3, updated_at = NOW() WHERE id = $4`,
+        `UPDATE doe_studies SET design_type = ?, resolution = ?, randomize_runs = ?, updated_at = NOW() WHERE id = ?`,
         [design_type, resolution || null, !!randomize, id]
       );
 
@@ -677,17 +674,16 @@ router.post('/studies/:id/factors', async (req, res) => {
   const projectId = await getProjectForDoeStudy(pool, studyId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const countRes = await pool.query(`SELECT COUNT(*) FROM doe_factors WHERE study_id = $1`, [studyId]);
-    const sortOrder = parseInt(countRes.rows[0].count);
+    const [countRes] = await pool.query(`SELECT COUNT(*) FROM doe_factors WHERE study_id = ?`, [studyId]);
+    const sortOrder = parseInt(countRes[0].count);
 
-    const result = await pool.query(
-      `INSERT INTO doe_factors (study_id, name, unit, levels, sort_order, factor_type, min_value, max_value, center_value)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    const [result] = await pool.query(
+      `INSERT INTO doe_factors (study_id, name, unit, levels, sort_order, factor_type, min_value, max_value, center_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [studyId, name.trim(), unit || null, JSON.stringify(levels || []), sortOrder,
        factor_type || 'discrete', min_value || null, max_value || null, center_value || null]
     );
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [studyId]);
-    res.status(201).json({ success: true, factor: result.rows[0] });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [studyId]);
+    res.status(201).json({ success: true, factor: result[0] });
   } catch (err) {
     console.error('[DOE] add factor error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -719,15 +715,15 @@ router.put('/factors/:fid', async (req, res) => {
   values.push(fid);
 
   try {
-    const result = await pool.query(
-      `UPDATE doe_factors SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    const [result] = await pool.query(
+      `UPDATE doe_factors SET ${fields.join(', ')} WHERE id = $${idx}`,
       values
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Factor not found' });
-    if (result.rows[0].study_id) {
-      await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
+    if (!result.length) return res.status(404).json({ success: false, message: 'Factor not found' });
+    if (result[0].study_id) {
+      await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
     }
-    res.json({ success: true, factor: result.rows[0] });
+    res.json({ success: true, factor: result[0] });
   } catch (err) {
     console.error('[DOE] update factor error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -741,9 +737,9 @@ router.delete('/factors/:fid', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_factors', 'id', fid);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(`DELETE FROM doe_factors WHERE id = $1 RETURNING id, study_id`, [fid]);
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Factor not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
+    const [result] = await pool.query(`DELETE FROM doe_factors WHERE id = ?
+    if (!result.length) return res.status(404).json({ success: false, message: 'Factor not found' });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete factor error', err);
@@ -766,14 +762,14 @@ router.post('/studies/:id/responses', async (req, res) => {
   const projectId = await getProjectForDoeStudy(pool, studyId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const countRes = await pool.query(`SELECT COUNT(*) FROM doe_responses WHERE study_id = $1`, [studyId]);
-    const sortOrder = parseInt(countRes.rows[0].count);
-    const result = await pool.query(
-      `INSERT INTO doe_responses (study_id, name, unit, target, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    const [countRes] = await pool.query(`SELECT COUNT(*) FROM doe_responses WHERE study_id = ?`, [studyId]);
+    const sortOrder = parseInt(countRes[0].count);
+    const [result] = await pool.query(
+      `INSERT INTO doe_responses (study_id, name, unit, target, sort_order) VALUES (?, ?, ?, ?, ?)`,
       [studyId, name.trim(), unit || null, target || 'maximize', sortOrder]
     );
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [studyId]);
-    res.status(201).json({ success: true, response: result.rows[0] });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [studyId]);
+    res.status(201).json({ success: true, response: result[0] });
   } catch (err) {
     console.error('[DOE] add response error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -798,15 +794,15 @@ router.put('/responses/:rid', async (req, res) => {
   if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
   values.push(rid);
   try {
-    const result = await pool.query(
-      `UPDATE doe_responses SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    const [result] = await pool.query(
+      `UPDATE doe_responses SET ${fields.join(', ')} WHERE id = $${idx}`,
       values
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Response not found' });
-    if (result.rows[0].study_id) {
-      await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
+    if (!result.length) return res.status(404).json({ success: false, message: 'Response not found' });
+    if (result[0].study_id) {
+      await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
     }
-    res.json({ success: true, response: result.rows[0] });
+    res.json({ success: true, response: result[0] });
   } catch (err) {
     console.error('[DOE] update response error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -820,9 +816,9 @@ router.delete('/responses/:rid', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_responses', 'id', rid);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(`DELETE FROM doe_responses WHERE id = $1 RETURNING id, study_id`, [rid]);
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Response not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
+    const [result] = await pool.query(`DELETE FROM doe_responses WHERE id = ?
+    if (!result.length) return res.status(404).json({ success: false, message: 'Response not found' });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete response error', err);
@@ -845,13 +841,12 @@ router.post('/studies/:id/constraints', async (req, res) => {
   const projectId = await getProjectForDoeStudy(pool, studyId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(
-      `INSERT INTO doe_constraints (study_id, name, description, constraint_type, expression)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    const [result] = await pool.query(
+      `INSERT INTO doe_constraints (study_id, name, description, constraint_type, expression) VALUES (?, ?, ?, ?, ?)`,
       [studyId, name.trim(), description || null, constraint_type || 'hard_limit', expression || null]
     );
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [studyId]);
-    res.status(201).json({ success: true, constraint: result.rows[0] });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [studyId]);
+    res.status(201).json({ success: true, constraint: result[0] });
   } catch (err) {
     console.error('[DOE] add constraint error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -877,12 +872,12 @@ router.put('/constraints/:cid', async (req, res) => {
   if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
   values.push(cid);
   try {
-    const result = await pool.query(
-      `UPDATE doe_constraints SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    const [result] = await pool.query(
+      `UPDATE doe_constraints SET ${fields.join(', ')} WHERE id = $${idx}`,
       values
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Constraint not found' });
-    res.json({ success: true, constraint: result.rows[0] });
+    if (!result.length) return res.status(404).json({ success: false, message: 'Constraint not found' });
+    res.json({ success: true, constraint: result[0] });
   } catch (err) {
     console.error('[DOE] update constraint error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -896,9 +891,9 @@ router.delete('/constraints/:cid', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_constraints', 'id', cid);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(`DELETE FROM doe_constraints WHERE id = $1 RETURNING id, study_id`, [cid]);
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Constraint not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
+    const [result] = await pool.query(`DELETE FROM doe_constraints WHERE id = ?
+    if (!result.length) return res.status(404).json({ success: false, message: 'Constraint not found' });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete constraint error', err);
@@ -918,18 +913,17 @@ router.post('/studies/:id/runs', async (req, res) => {
   const projectId = await getProjectForDoeStudy(pool, studyId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const maxRes = await pool.query(
-      `SELECT COALESCE(MAX(run_number), 0) AS max_run FROM doe_runs WHERE study_id = $1`,
+    const [maxRes] = await pool.query(
+      `SELECT COALESCE(MAX(run_number), 0) AS max_run FROM doe_runs WHERE study_id = ?`,
       [studyId]
     );
-    const runNumber = parseInt(maxRes.rows[0].max_run) + 1;
-    const result = await pool.query(
-      `INSERT INTO doe_runs (study_id, run_number, factor_settings, notes, status, run_order)
-       VALUES ($1, $2, $3, $4, 'planned', $2) RETURNING *`,
+    const runNumber = parseInt(maxRes[0].max_run) + 1;
+    const [result] = await pool.query(
+      `INSERT INTO doe_runs (study_id, run_number, factor_settings, notes, status, run_order) VALUES (?, ?, ?, ?, 'planned', ?)`,
       [studyId, runNumber, JSON.stringify(factor_settings || {}), notes || null]
     );
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [studyId]);
-    res.status(201).json({ success: true, run: result.rows[0] });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [studyId]);
+    res.status(201).json({ success: true, run: result[0] });
   } catch (err) {
     console.error('[DOE] add run error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -961,13 +955,13 @@ router.put('/runs/:runId', async (req, res) => {
   values.push(runId);
 
   try {
-    const result = await pool.query(
-      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    const [result] = await pool.query(
+      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = $${idx}`,
       values
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Run not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
-    res.json({ success: true, run: result.rows[0] });
+    if (!result.length) return res.status(404).json({ success: false, message: 'Run not found' });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
+    res.json({ success: true, run: result[0] });
   } catch (err) {
     console.error('[DOE] update run error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -989,7 +983,7 @@ router.put('/runs/:runId/status', async (req, res) => {
     return res.status(400).json({ success: false, message: 'status must be one of: ' + VALID_STATUSES.join(', ') });
   }
 
-  const fields = [`status = $1`];
+  const fields = [`status = ?`];
   const values = [status];
   let idx = 2;
 
@@ -1006,13 +1000,13 @@ router.put('/runs/:runId/status', async (req, res) => {
   values.push(runId);
 
   try {
-    const result = await pool.query(
-      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    const [result] = await pool.query(
+      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = $${idx}`,
       values
     );
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Run not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
-    res.json({ success: true, run: result.rows[0] });
+    if (!result.length) return res.status(404).json({ success: false, message: 'Run not found' });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
+    res.json({ success: true, run: result[0] });
   } catch (err) {
     console.error('[DOE] update run status error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -1026,9 +1020,9 @@ router.delete('/runs/:runId', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_runs', 'id', runId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(`DELETE FROM doe_runs WHERE id = $1 RETURNING id, study_id`, [runId]);
-    if (!result.rows.length) return res.status(404).json({ success: false, message: 'Run not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [result.rows[0].study_id]);
+    const [result] = await pool.query(`DELETE FROM doe_runs WHERE id = ?
+    if (!result.length) return res.status(404).json({ success: false, message: 'Run not found' });
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete run error', err);
@@ -1047,18 +1041,18 @@ router.post('/runs/:runId/results', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_runs', 'id', runId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO doe_run_results (run_id, response_id, value, notes)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (run_id, response_id) DO UPDATE SET value = EXCLUDED.value, notes = EXCLUDED.notes
-       RETURNING *`,
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE value = VALUES(value), notes = VALUES(notes)`,
       [runId, parseInt(response_id), value !== undefined ? value : null, notes || null]
     );
-    const runRes = await pool.query(`SELECT study_id FROM doe_runs WHERE id = $1`, [runId]);
-    if (runRes.rows.length) {
-      await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = $1`, [runRes.rows[0].study_id]);
+    const [runRes] = await pool.query(`SELECT study_id FROM doe_runs WHERE id = ?`, [runId]);
+    if (runRes.length) {
+      await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [runRes[0].study_id]);
     }
-    res.json({ success: true, result: result.rows[0] });
+    const [resultRows] = await pool.query('SELECT * FROM doe_run_results WHERE run_id = ? AND response_id = ?', [runId, parseInt(response_id)]);
+    res.json({ success: true, result: resultRows[0] });
   } catch (err) {
     console.error('[DOE] upsert result error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -1074,8 +1068,8 @@ router.get('/studies/:id/decision', async (req, res) => {
   const pool = req.app.locals.pool;
   const id = parseInt(req.params.id);
   try {
-    const result = await pool.query(`SELECT * FROM doe_decisions WHERE study_id = $1`, [id]);
-    res.json({ success: true, decision: result.rows[0] || null });
+    const [result] = await pool.query(`SELECT * FROM doe_decisions WHERE study_id = ?`, [id]);
+    res.json({ success: true, decision: result[0] || null });
   } catch (err) {
     console.error('[DOE] get decision error', err);
     res.status(500).json({ success: false, message: err.message });
@@ -1097,27 +1091,31 @@ router.post('/studies/:id/decision', async (req, res) => {
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
   try {
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO doe_decisions (study_id, decision, rejected_options, confidence_level, affected_node_ids)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (study_id) DO UPDATE SET
-         decision = EXCLUDED.decision,
-         rejected_options = EXCLUDED.rejected_options,
-         confidence_level = EXCLUDED.confidence_level,
-         affected_node_ids = EXCLUDED.affected_node_ids,
-         updated_at = NOW()
-       RETURNING *`,
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         decision = VALUES(decision),
+         rejected_options = VALUES(rejected_options),
+         confidence_level = VALUES(confidence_level),
+         affected_node_ids = VALUES(affected_node_ids),
+         updated_at = NOW()`,
       [id, decision.trim(),
        JSON.stringify(rejected_options || []),
        confidence_level || 'medium',
        JSON.stringify(affected_node_ids || [])]
     );
-    // Mark study as completed now that decision exists
-    await pool.query(
-      `UPDATE doe_studies SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status != 'completed'`,
+
+    const [result] = await pool.query(
+      'SELECT * FROM doe_decisions WHERE study_id = ?',
       [id]
     );
-    res.json({ success: true, decision: result.rows[0] });
+    // Mark study as completed now that decision exists
+    await pool.query(
+      `UPDATE doe_studies SET status = 'completed', updated_at = NOW() WHERE id = ? AND status != 'completed'`,
+      [id]
+    );
+    res.json({ success: true, decision: result[0] });
   } catch (err) {
     console.error('[DOE] save decision error', err);
     res.status(500).json({ success: false, message: err.message });
