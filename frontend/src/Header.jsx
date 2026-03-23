@@ -4,7 +4,7 @@ import {
   Menu, X, LogOut, User, ChevronDown, Plus, FolderOpen, FlaskConical,
   Cog, ClipboardList, FileText, AlertTriangle, Calendar, BarChart3,
   Settings, Users, CreditCard, Shield, Building2, Eye, Lock, Globe,
-  Layers, Package, GitBranch, Check, Radio
+  Layers, Package, GitBranch, Check, Radio, TreePine, Compass, ExternalLink
 } from 'lucide-react';
 import { useAuth, PLAN_TIERS, VISIBILITY, TIER_CONFIG } from './context/AuthContext';
 import { DEMO_PROJECTS } from './data/demoProjects';
@@ -119,6 +119,13 @@ const Header = () => {
     { name: 'Reporting', path: '/reporting', icon: BarChart3, description: 'Design Reports & Audits' },
     // Executive Dashboard visible to all, but access gated to Corporate/Enterprise inside the component
     { name: 'Executive', path: '/executive', icon: Building2, badge: 'CORP', description: 'Executive Dashboard' }
+  ];
+
+  // factoryos-only features — served as vanilla HTML pages
+  const factoryosLinks = [
+    { name: 'Node Tree', href: '/app', icon: TreePine, description: 'Component hierarchy editor' },
+    { name: 'Discovery', href: '/discovery', icon: Compass, description: 'Early-stage design workspace' },
+    { name: 'Projects', href: '/projects', icon: FolderOpen, description: 'Project dashboard' }
   ];
 
   // Platform-wide "New" menu items
@@ -287,6 +294,29 @@ const Header = () => {
                       </div>
                     </button>
                   ))}
+
+                  {/* factoryos-only features (vanilla HTML) */}
+                  <div className="px-4 py-2 border-t border-[#2A2F36]">
+                    <p className="text-xs text-[#6B7280] uppercase tracking-wide font-medium">Engineering Tools</p>
+                  </div>
+                  {factoryosLinks.map((link) => (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-[#22262C] transition"
+                    >
+                      <div className="mt-0.5">
+                        <link.icon className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-[#F0F2F4]">{link.name}</p>
+                          <ExternalLink className="w-3 h-3 text-[#6B7280]" />
+                        </div>
+                        <p className="text-xs text-[#6B7280] mt-0.5">{link.description}</p>
+                      </div>
+                    </a>
+                  ))}
                 </div>
               )}
             </div>
@@ -427,6 +457,23 @@ const Header = () => {
                     <link.icon className="w-4 h-4 text-[#6B7280]" />
                     {link.name}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {/* factoryos Engineering Tools (mobile) */}
+            <div>
+              <p className="text-xs text-[#6B7280] uppercase tracking-wide font-medium mb-3">Engineering Tools</p>
+              <div className="grid grid-cols-2 gap-2">
+                {factoryosLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-[#1C1F24] text-emerald-400 hover:text-emerald-300 transition"
+                  >
+                    <link.icon className="w-4 h-4" />
+                    {link.name}
+                  </a>
                 ))}
               </div>
             </div>

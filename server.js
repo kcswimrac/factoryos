@@ -35,10 +35,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
 });
 
-// Root redirect for custom domain — redirect to /projects dashboard
-app.get('/', (req, res) => {
-  res.redirect(301, '/projects');
-});
+// Root route — handled at the bottom of the file (React SPA or vanilla fallback)
 
 // ── Auth routes (no authentication required) ────────────────────────────────
 const authRouter = require('./routes/auth');
@@ -176,13 +173,72 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: err.message || 'Internal server error' });
 });
 
-// Serve static files from public folder
+// ══════════════════════════════════════════════════════════════════════════════
+// STATIC FILES & PAGE ROUTES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Serve built React frontend (Phase 1 — Factory-os UI)
+const reactDistPath = path.join(__dirname, 'frontend', 'dist');
+if (fs.existsSync(reactDistPath)) {
+  app.use('/assets', express.static(path.join(reactDistPath, 'assets')));
+}
+
+// Serve vanilla HTML static files (Phase 4 — factoryos-only features)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Auth pages
+// ── React SPA routes (Factory-os frontend) ──────────────────────────────────
+// These routes serve the React SPA for the modern Factory-os UI
+const reactRoutes = [
+  '/doe', '/doe/*',
+  '/design', '/design/*',
+  '/quality', '/quality/*',
+  '/timeline',
+  '/reporting', '/reporting/*',
+  '/executive',
+  '/resources',
+  '/shared-with-me',
+  '/share/experiment/*',
+  '/help'
+];
+
+const serveReactApp = (req, res) => {
+  const indexPath = path.join(reactDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    // Fallback: redirect to vanilla projects page if React build not available
+    res.redirect('/projects');
+  }
+};
+
+reactRoutes.forEach(route => app.get(route, serveReactApp));
+
+// ── Root route — serve React landing page ────────────────────────────────────
+app.get('/', (req, res) => {
+  const indexPath = path.join(reactDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.redirect('/projects');
+  }
+});
+
+// ── React login (Factory-os frontend login) ──────────────────────────────────
+// Vanilla login kept at /login/classic for backward compatibility
 app.get('/login', (req, res) => {
+  const indexPath = path.join(reactDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  }
+});
+
+app.get('/login/classic', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
+
+// ── factoryos-only vanilla HTML pages (preserved from Phase 4) ───────────────
 
 app.get('/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
@@ -193,12 +249,12 @@ app.get('/onboarding', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'onboarding.html'));
 });
 
-// Projects dashboard — team/project list
+// Projects dashboard — team/project list (factoryos node tree launcher)
 app.get('/projects', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'projects.html'));
 });
 
-// App route - serves the node tree app (scoped to a project via ?project=ID)
+// Node tree app (factoryos core — scoped to a project via ?project=ID)
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
@@ -208,13 +264,15 @@ app.get('/discovery', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'discovery.html'));
 });
 
-// SOPs (project-scoped, ?project=ID)
-app.get('/sops', (req, res) => {
+// SOPs workspace (factoryos vanilla — React version at /sops via SPA)
+app.get('/sops/workspace', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sops.html'));
 });
 
-// Public share viewer — /share/:token
+// Public share viewer — /share/:token (factoryos project share)
 app.get('/share/:token', (req, res) => {
+  // Don't intercept /share/experiment/* (React SPA handles those)
+  if (req.params.token === 'experiment') return serveReactApp(req, res);
   res.sendFile(path.join(__dirname, 'public', 'share.html'));
 });
 
@@ -252,8 +310,15 @@ app.get('/settings', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'settings.html'));
 });
 
-// 404 — must come after all routes and static middleware
+// ── Catch-all: try React SPA, then 404 ──────────────────────────────────────
 app.use((req, res) => {
+  // For non-API requests, try React SPA first
+  if (!req.path.startsWith('/api/')) {
+    const indexPath = path.join(reactDistPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+  }
   res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 

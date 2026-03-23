@@ -183,7 +183,17 @@ function App() {
             </ProtectedRoute>
           } />
 
-          {/* Redirect any unknown routes to home */}
+          {/* factoryos-only features — served as vanilla HTML by the backend */}
+          {/* /projects — Project dashboard & node tree launcher */}
+          {/* /app?project=ID — Node tree editor */}
+          {/* /discovery?project=ID — Discovery workspace */}
+          {/* /sops/workspace?project=ID — SOP editor (vanilla) */}
+          {/* /onboarding — Initial setup wizard */}
+          {/* /settings — User settings */}
+          {/* /invest — Investor pitch page */}
+          {/* /share/:token — Public project share viewer */}
+
+          {/* Unknown routes: redirect to landing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
