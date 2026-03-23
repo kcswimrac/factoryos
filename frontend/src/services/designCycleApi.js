@@ -1,7 +1,8 @@
 // Design Cycle API Service
 // Provides API methods for the 7-phase Engineering Design Cycle
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use Vite proxy (empty string = relative URLs)
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Helper for API requests
 async function apiRequest(endpoint, options = {}) {

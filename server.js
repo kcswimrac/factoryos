@@ -145,6 +145,11 @@ app.use('/api/resources', optionalAuth, resourcesInventoryRouter);
 const visitorsRouter = require('./routes/visitors');
 app.use('/api/visitors', visitorsRouter);
 
+// Knowledge base search (placeholder for design cycle)
+app.get('/api/knowledge/search', (req, res) => {
+  res.json({ success: true, data: [] });
+});
+
 // Bidirectional: GET /api/nodes/:nodeId/sops
 // Returns all SOPs that include this node in their linked_nodes JSON array
 app.get('/api/nodes/:nodeId/sops', optionalAuth, async (req, res) => {
