@@ -1,76 +1,84 @@
 const express = require('express');
 const router = express.Router();
 
-// ── Phase configuration ──────────────────────────────────────────────────────
+// ── Phase configuration (7-phase model with 3a/3b/3c sub-phases) ─────────────
+// Matches frontend/src/config/designPhases.js DESIGN_PHASES array.
+// Phase 3 is split into 3a (Design/CAD), 3b (Serviceability), 3c (Manufacturability).
 
 const PHASES = [
-  { number: 1, name: 'requirements', displayName: 'Define Requirements' },
-  { number: 2, name: 'research', displayName: 'Research & Development' },
-  { number: 3, name: 'design', displayName: 'Design / CAD' },
-  { number: 4, name: 'data_collection', displayName: 'Data Collection' },
-  { number: 5, name: 'analysis', displayName: 'Analysis / Calculations' },
-  { number: 6, name: 'testing', displayName: 'Testing / Validation' },
-  { number: 7, name: 'correlation', displayName: 'Correlation' },
-  { number: 8, name: 'serviceability', displayName: 'Serviceability' },
-  { number: 9, name: 'manufacturability', displayName: 'Manufacturability' }
+  { number: 1, subPhase: null, name: 'requirements', displayName: 'Define Requirements' },
+  { number: 2, subPhase: null, name: 'research', displayName: 'Research & Development' },
+  { number: 3, subPhase: 'a', name: 'design_cad', displayName: 'Design / CAD' },
+  { number: 3, subPhase: 'b', name: 'serviceability', displayName: 'Serviceability' },
+  { number: 3, subPhase: 'c', name: 'manufacturability', displayName: 'Manufacturability' },
+  { number: 4, subPhase: null, name: 'data_collection', displayName: 'Data Collection' },
+  { number: 5, subPhase: null, name: 'analysis', displayName: 'Analysis / CAE' },
+  { number: 6, subPhase: null, name: 'testing', displayName: 'Testing / Validation' },
+  { number: 7, subPhase: null, name: 'correlation', displayName: 'Correlation' }
 ];
 
+// Questions aligned to 7-phase model (keyed by phase_number + subPhase suffix)
 const DEFAULT_QUESTIONS = {
-  1: [
-    'Are all performance requirements clearly defined and measurable?',
-    'Have all design constraints been identified and documented?',
-    'Are success criteria quantifiable and verifiable?',
-    'Are requirements within your team\'s control to achieve?'
+  '1': [
+    'What is the primary function of this component?',
+    'Are all requirements defined with unique IDs and acceptance criteria?',
+    'Is a verification method assigned to each requirement (Analysis/Test/Inspection)?',
+    'Has the rigor tier been selected and justified?'
   ],
-  2: [
-    'Have existing solutions been analyzed for applicability?',
-    'Have alternative technologies been evaluated?',
-    'Is proof-of-concept testing completed and documented?',
-    'Does all R&D directly support meeting specifications?'
+  '2': [
+    'Have existing solutions been researched and documented?',
+    'Has the correlation factors library been searched for applicable data?',
+    'Are key technical risks identified with mitigations?',
+    'If rigor tier is non-default, is justification documented?'
   ],
-  3: [
-    'Have all 3D models been completed for this component?',
-    'Are detailed drawings generated with all critical dimensions?',
-    'Is GD&T applied to all critical dimensions?',
-    'Is each design feature mapped to a requirement?'
+  '3a': [
+    'Is the 3D CAD model complete?',
+    'Are 2D drawings with GD&T complete?',
+    'Has a design review been conducted?',
+    'Is the Interface Control Document complete with adjacent node approvals?'
   ],
-  4: [
-    'Have all required measurements been gathered?',
-    'Is test equipment specified and calibration documented?',
-    'Are boundary conditions clearly defined?',
-    'Is data quality confidence level established?'
+  '3b': [
+    'Has access for maintenance and repair been analyzed?',
+    'Are wear items listed with expected life and replacement time?',
+    'Are maintenance, repair, and overhaul procedures documented?',
+    'Is service feasible with expected tools, skills, and access constraints?'
   ],
-  5: [
-    'Have analytical methods (FEA, hand calcs) been applied?',
-    'Are all assumptions documented?',
-    'Are safety factors determined and justified?',
-    'Does analysis validate design meets requirements?'
+  '3c': [
+    'Has a DFM review been completed for target production context?',
+    'Are critical dimensions listed with inspection methods?',
+    'Is the cost estimate complete and within target for production volume?',
+    'Are make/buy decisions documented with rationale?'
   ],
-  6: [
-    'Is a structured test plan documented with clear purposes?',
-    'Are all failures documented with root causes?',
-    'Are test results compared against specifications?',
-    'Is statistical analysis of test runs completed?'
+  '4': [
+    'Are all load cases documented with source/basis and linked to requirements?',
+    'Are material properties documented with source traceability?',
+    'Are boundary conditions documented with rationale?',
+    'Do all assumptions have "what if wrong?" risk assessment?'
   ],
-  7: [
-    'Have analytical predictions been compared to test results?',
-    'Is correlation accuracy calculated and acceptable?',
-    'Are correlation coefficients documented?',
-    'Are lessons learned captured for future designs?'
+  '5': [
+    'Is analysis complete (FEA, hand calculations, etc.)?',
+    'Does every requirement with verification method "Analysis" have an analysis check?',
+    'Are margins of safety calculated for all critical checks?',
+    'Does trace coverage meet tier threshold?'
   ],
-  8: [
-    'Are routine maintenance requirements documented?',
-    'Are tool requirements for service specified?',
-    'Are service intervals defined?',
-    'Is component accessibility adequate for field repair?'
+  '6': [
+    'Is the test plan approved per tier requirements?',
+    'Does every requirement with verification method "Test" have a test case?',
+    'Have all tests been executed and documented?',
+    'Does trace coverage meet tier threshold?'
   ],
-  9: [
-    'Has DFM analysis been completed?',
-    'Are tooling requirements documented?',
-    'Is cost breakdown analysis complete?',
-    'Are quality control points defined?'
+  '7': [
+    'Are correlation parameters documented (predicted vs actual)?',
+    'Have correlation factors been promoted to knowledge base?',
+    'Are lessons learned documented?',
+    'Are all required gates approved?'
   ]
 };
+
+// Helper: get phase key string (e.g. "1", "3a", "3b")
+function phaseKey(number, subPhase) {
+  return subPhase ? `${number}${subPhase}` : `${number}`;
+}
 
 // ── GET / — list all design projects ─────────────────────────────────────────
 
@@ -110,16 +118,17 @@ router.post('/', async (req, res) => {
     );
     const projectId = result.insertId;
 
-    // Create all 9 phases with default questions
+    // Create all 7 phases (with 3a/3b/3c sub-phases) and default questions
     for (const phase of PHASES) {
+      const pKey = phaseKey(phase.number, phase.subPhase);
       const [phaseResult] = await pool.query(
         `INSERT INTO design_phases (project_id, phase_number, phase_name, display_name)
          VALUES (?, ?, ?, ?)`,
-        [projectId, phase.number, phase.name, phase.displayName]
+        [projectId, pKey, phase.name, phase.displayName]
       );
       const phaseId = phaseResult.insertId;
 
-      const questions = DEFAULT_QUESTIONS[phase.number];
+      const questions = DEFAULT_QUESTIONS[pKey] || [];
       for (let i = 0; i < questions.length; i++) {
         await pool.query(
           `INSERT INTO design_phase_questions (phase_id, question_number, question_text)
@@ -244,7 +253,8 @@ router.put('/:id/phases/:phaseNumber', async (req, res) => {
       totalProgress += (p.progress_percentage || 0);
       if (p.status === 'completed') currentPhase = p.phase_number + 1;
     }
-    const overallProgress = Math.round(totalProgress / 9);
+    const phaseCount = phases.length || 1;
+    const overallProgress = Math.round(totalProgress / phaseCount);
 
     await pool.query(
       'UPDATE design_projects SET current_phase = ?, overall_progress = ? WHERE id = ?',
