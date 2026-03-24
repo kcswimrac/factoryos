@@ -496,8 +496,8 @@ router.delete('/studies/:id', async (req, res) => {
   const projectId = await getProjectForDoeStudy(pool, id);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const [result] = await pool.query(`DELETE FROM doe_studies WHERE id = ?
-    if (!result.length) {
+    const [result] = await pool.query(`DELETE FROM doe_studies WHERE id = ?`, [id]);
+    if (!result.affectedRows) {
       return res.status(404).json({ success: false, message: 'Study not found' });
     }
     res.json({ success: true, message: 'Study deleted' });
@@ -814,9 +814,10 @@ router.delete('/responses/:rid', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_responses', 'id', rid);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const [result] = await pool.query(`DELETE FROM doe_responses WHERE id = ?
-    if (!result.length) return res.status(404).json({ success: false, message: 'Response not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
+    const [rows] = await pool.query(`SELECT study_id FROM doe_responses WHERE id = ?`, [rid]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Response not found' });
+    await pool.query(`DELETE FROM doe_responses WHERE id = ?`, [rid]);
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [rows[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete response error', err);
@@ -1016,9 +1017,10 @@ router.delete('/runs/:runId', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_runs', 'id', runId);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const [result] = await pool.query(`DELETE FROM doe_runs WHERE id = ?
-    if (!result.length) return res.status(404).json({ success: false, message: 'Run not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
+    const [rows] = await pool.query(`SELECT study_id FROM doe_runs WHERE id = ?`, [runId]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Run not found' });
+    await pool.query(`DELETE FROM doe_runs WHERE id = ?`, [runId]);
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [rows[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete run error', err);
