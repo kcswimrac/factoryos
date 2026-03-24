@@ -109,6 +109,13 @@ factoryos/
 - **T3.4: Power budget tracking** — New `power_rails` table with nominal voltage, tolerance, max current, source type (regulator/converter/battery/external), efficiency. `power_consumers` with typical/peak current, duty cycle, operating mode. Auto-calculates: typical/peak margins (mA and %), power draw (mW), input power accounting for efficiency, system-level summary. Routes at `/api/power-budget`.
 - **T3.5: Electronics phase gates** — 5 new gate types added to GATE_TYPES: schematic_review (phase 3a), pcb_layout_drc (3a), si_pi_analysis (5), emc_precompliance (6), power_budget (4). All enforce via existing check-gate endpoint.
 
+### Tier 4 — Git / Firmware Domain
+- **T4.1: Git repo linking** — New `git_repos` table supports GitHub, GitLab, Bitbucket, Azure DevOps. Stores repo URL, default branch, language, last commit metadata. `git_commits` table caches commit history (batch import via webhook or manual sync). Routes at `/api/git/repos` with CRUD + commit import.
+- **T4.2: Firmware modules** — New `firmware_modules` table: current_version, build_status (passing/failing/unstable), test_coverage_percent, language, compiler, target_platform, flash_size_kb, ram_usage_kb, entry_point, build_command, flash_command. Linked to repo and node. Routes at `/api/git/firmware`.
+- **T4.3: HW-SW interface tracking** — Three new tables: `hw_sw_pin_maps` with 21 pin functions (GPIO, ADC, DAC, PWM, UART, SPI, I2C, CAN, USB, JTAG, etc.), PCB net names, connector references, voltage levels, pull configs. `hw_sw_register_maps` with peripheral name, address, width, access mode, reset value, bit field JSON. `hw_sw_protocols` supporting 12 protocols (CAN, SPI, I2C, UART, USB, Ethernet, LIN, Modbus, MQTT, BLE, WiFi, custom) with speed, address, message format JSON, timing requirements JSON. Routes at `/api/hw-sw`. Batch pin map import for spreadsheet workflows.
+- **T4.4: Build/deploy tracking** — `firmware_builds` table with version, commit SHA, build status, test results JSON, binary size, build log. Auto-updates module version/status on new build. `hw_fw_compatibility` matrix: HW revision × FW version with compatibility level (full/partial/incompatible/untested) and release status (development/testing/released/deprecated). Routes at `/api/git/builds` and `/api/git/compatibility`.
+- **T4.5: Code review linking** — `code_review_links` table links GitHub/GitLab PRs to requirements. Tracks PR number/URL/title/status, reviewer, review status (pending/approved/changes_requested), verification type (implements/tests/fixes/documents). Enables: "show me all PRs that implement requirement X" queries. Routes at `/api/git/code-reviews`.
+
 ---
 
 ## What Still Needs to Be Done
@@ -133,15 +140,15 @@ factoryos/
 | T3.4 | **Power budget tracking** — rails with source/efficiency, consumers with duty cycle, auto-calculated margins | power-budget.js | 3 days | DONE |
 | T3.5 | **Electronics phase gates** — schematic_review, pcb_layout_drc, si_pi_analysis, emc_precompliance, power_budget | design-cycle.js | 2 days | DONE |
 
-### Tier 4 — Git / Firmware Domain (New Capability)
+### Tier 4 — Git / Firmware Domain (COMPLETED)
 
 | # | Action | Module | Effort | Status |
 |---|--------|--------|--------|--------|
-| T4.1 | **Git repo linking** — associate repos with project nodes, display commit timeline alongside design phases, link commits to requirement verification | New module | 3 days | NOT STARTED |
-| T4.2 | **Firmware node type** — version tracking, build status, test coverage per firmware module | Nodes | 2 days | NOT STARTED |
-| T4.3 | **HW-SW interface tracking** — pin maps (MCU pin → PCB net → connector → sensor), register maps, protocol specs (CAN, SPI, I2C, UART), timing requirements | New module | 5 days | NOT STARTED |
-| T4.4 | **Build/deploy tracking** — firmware version ↔ hardware revision compatibility matrix, OTA tracking | New module | 3 days | NOT STARTED |
-| T4.5 | **Code review linking** — associate GitHub PRs/commits with requirement verification evidence | Requirements | 2 days | NOT STARTED |
+| T4.1 | **Git repo linking** — repos with commit history, webhook-ready sync, multi-provider | git-repos.js | 3 days | DONE |
+| T4.2 | **Firmware modules** — version, build status, test coverage, compiler, flash/RAM, build/flash commands | git-repos.js | 2 days | DONE |
+| T4.3 | **HW-SW interfaces** — pin maps (21 pin functions), register maps with bit fields, 12 protocols with timing | hw-sw-interfaces.js | 5 days | DONE |
+| T4.4 | **Build/deploy tracking** — build log + test results, HW↔FW compatibility matrix with release status | git-repos.js | 3 days | DONE |
+| T4.5 | **Code review linking** — PRs linked to requirements with verification type (implements/tests/fixes/documents) | git-repos.js | 2 days | DONE |
 
 ### Tier 5 — Platform Maturity (Scale & Polish)
 

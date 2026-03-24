@@ -90,6 +90,14 @@ app.use('/api/nodes', optionalAuth, electronicsRouter);
 const powerBudgetRouter = require('./routes/power-budget');
 app.use('/api/power-budget', optionalAuth, powerBudgetRouter);
 
+// Git repos, firmware modules, builds, code reviews (T4.1, T4.2, T4.4, T4.5)
+const gitReposRouter = require('./routes/git-repos');
+app.use('/api/git', optionalAuth, gitReposRouter);
+
+// HW-SW interfaces: pin maps, register maps, protocols (T4.3)
+const hwSwRouter = require('./routes/hw-sw-interfaces');
+app.use('/api/hw-sw', optionalAuth, hwSwRouter);
+
 const requirementsRouter = require('./routes/requirements');
 app.use('/api/requirements', optionalAuth, requirementsRouter);
 
