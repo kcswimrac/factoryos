@@ -84,6 +84,15 @@ router.get('/ecr/:ecrId', async (req, res) => {
 router.put('/ecr/:ecrId', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
+
+    // Validate status transition
+    if (req.body.status) {
+      const validStatuses = ['draft', 'submitted', 'under_review', 'approved', 'rejected', 'implemented', 'closed'];
+      if (!validStatuses.includes(req.body.status)) {
+        return res.status(400).json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      }
+    }
+
     const allowed = ['title', 'description', 'reason', 'priority', 'status', 'assigned_to',
                      'affected_nodes', 'affected_requirements', 'impact_analysis',
                      'cost_impact', 'schedule_impact', 'risk_assessment'];

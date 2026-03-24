@@ -382,7 +382,7 @@ router.post('/:id/chat', async (req, res) => {
         temperature: 0.4,
         max_tokens: 800,
       });
-      aiResponse = completion.choices[0].message.content;
+      aiResponse = completion.choices?.[0]?.message?.content || 'Unable to generate AI response. Please try again.';
     } else {
       // Fallback when AI not configured — provide phase-aware guidance
       const [phases] = await pool.query(

@@ -26,6 +26,12 @@ router.post('/', async (req, res) => {
     const pool = req.app.locals.pool;
     const { projectId, reportType, title, config, fileFormat, generatedBy } = req.body;
 
+    const validReportTypes = ['traceability_matrix', 'phase_summary', 'gate_status',
+      'design_review_pack', 'bom_export', 'power_budget', 'test_summary', 'full_design_report'];
+    if (!reportType || !validReportTypes.includes(reportType)) {
+      return res.status(400).json({ success: false, error: `Invalid reportType. Must be one of: ${validReportTypes.join(', ')}` });
+    }
+
     const [result] = await pool.query(
       `INSERT INTO report_jobs (project_id, report_type, title, config, file_format, generated_by, status, started_at)
        VALUES (?, ?, ?, ?, ?, ?, 'generating', NOW())`,
@@ -202,8 +208,10 @@ async function generatePowerBudgetReport(pool, projectId) {
     rail.typicalMa = typical;
     rail.peakMa = peak;
     rail.marginPercent = rail.max_current > 0 ? ((rail.max_current - peak) / rail.max_current * 100) : 0;
+    rail.overBudget = rail.max_current > 0 && peak > rail.max_current;
   }
-  return { type: 'power_budget', generatedAt: new Date().toISOString(), rails };
+  const allWithinBudget = rails.every(r => !r.overBudget);
+  return { type: 'power_budget', generatedAt: new Date().toISOString(), rails, allWithinBudget };
 }
 
 async function generateTestSummary(pool, projectId) {

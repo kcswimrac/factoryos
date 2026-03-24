@@ -142,19 +142,43 @@ router.get('/critical-path', async (req, res) => {
 
     deps.forEach(d => {
       if (itemMap[d.predecessor_id] && itemMap[d.successor_id]) {
-        itemMap[d.predecessor_id].successors.push({ id: d.successor_id, lag: d.lag_days || 0 });
-        itemMap[d.successor_id].predecessors.push({ id: d.predecessor_id, lag: d.lag_days || 0 });
+        const type = d.dependency_type || 'finish_to_start';
+        itemMap[d.predecessor_id].successors.push({ id: d.successor_id, lag: d.lag_days || 0, type });
+        itemMap[d.successor_id].predecessors.push({ id: d.predecessor_id, lag: d.lag_days || 0, type });
       }
     });
 
-    // Forward pass (earliest start/finish)
-    const sorted = topologicalSort(Object.values(itemMap));
+    // Topological sort with cycle detection
+    const allNodes = Object.values(itemMap);
+    const sorted = topologicalSort(allNodes);
+    const hasCycles = sorted.length < allNodes.length;
+    const warnings = [];
+    if (hasCycles) {
+      const sortedIds = new Set(sorted.map(n => n.id));
+      const cycleNodes = allNodes.filter(n => !sortedIds.has(n.id)).map(n => n.id);
+      warnings.push(`Circular dependencies detected involving items: ${cycleNodes.join(', ')}. These items are excluded from critical path.`);
+    }
+
+    // Forward pass (earliest start/finish) — supports all 4 dependency types
     sorted.forEach(node => {
       node.predecessors.forEach(pred => {
         const predNode = itemMap[pred.id];
-        if (predNode) {
-          node.es = Math.max(node.es, predNode.ef + pred.lag);
+        if (!predNode) return;
+        let candidate;
+        switch (pred.type) {
+          case 'start_to_start':
+            candidate = predNode.es + pred.lag;
+            break;
+          case 'finish_to_finish':
+            candidate = predNode.ef - node.duration + pred.lag;
+            break;
+          case 'start_to_finish':
+            candidate = predNode.es - node.duration + pred.lag;
+            break;
+          default: // finish_to_start
+            candidate = predNode.ef + pred.lag;
         }
+        node.es = Math.max(node.es, candidate);
       });
       node.ef = node.es + node.duration;
     });
@@ -167,9 +191,22 @@ router.get('/critical-path', async (req, res) => {
       } else {
         node.successors.forEach(succ => {
           const succNode = itemMap[succ.id];
-          if (succNode) {
-            node.lf = Math.min(node.lf, succNode.ls - succ.lag);
+          if (!succNode) return;
+          let candidate;
+          switch (succ.type) {
+            case 'start_to_start':
+              candidate = succNode.ls + node.duration - succ.lag;
+              break;
+            case 'finish_to_finish':
+              candidate = succNode.lf - succ.lag;
+              break;
+            case 'start_to_finish':
+              candidate = succNode.lf + node.duration - succ.lag;
+              break;
+            default: // finish_to_start
+              candidate = succNode.ls - succ.lag;
           }
+          node.lf = Math.min(node.lf, candidate);
         });
       }
       node.ls = node.lf - node.duration;
@@ -186,8 +223,9 @@ router.get('/critical-path', async (req, res) => {
         criticalPath,
         projectDuration: projectEnd,
         totalItems: items.length,
-        criticalItems: criticalPath.length
-      }
+        criticalItems: criticalPath.length,
+        hasCycles,
+        warnings
     });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });

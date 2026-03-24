@@ -104,6 +104,16 @@ router.post('/webhooks', async (req, res) => {
     const pool = req.app.locals.pool;
     const { projectId, eventType, webhookUrl, secret } = req.body;
 
+    if (!webhookUrl || (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://'))) {
+      return res.status(400).json({ success: false, error: 'webhookUrl must be a valid HTTP/HTTPS URL' });
+    }
+    const validEventTypes = ['gate_approved', 'gate_rejected', 'review_scheduled', 'finding_assigned',
+      'finding_overdue', 'ecr_submitted', 'ecn_issued', 'calibration_due',
+      'share_invite', 'sop_execution_complete', 'build_failed', 'custom'];
+    if (!eventType || !validEventTypes.includes(eventType)) {
+      return res.status(400).json({ success: false, error: `Invalid eventType. Must be one of: ${validEventTypes.join(', ')}` });
+    }
+
     const [result] = await pool.query(
       'INSERT INTO webhook_subscriptions (project_id, event_type, webhook_url, secret) VALUES (?, ?, ?, ?)',
       [projectId || null, eventType, webhookUrl, secret || null]
