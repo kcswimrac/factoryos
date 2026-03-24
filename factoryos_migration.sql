@@ -395,7 +395,7 @@ INSERT INTO project_members (project_id, user_id, role)
       JOIN teams t ON t.id = p.team_id
       JOIN team_members tm ON tm.team_id = t.id AND tm.role = 'owner'
       WHERE p.is_demo = 0
-      ON DUPLICATE KEY UPDATE role = role;
+      ON DUPLICATE KEY UPDATE project_members.role = project_members.role;
 
 -- ─── Migration: 20260323000001_doe_phase1_extensions.js ───
 ALTER TABLE doe_studies
