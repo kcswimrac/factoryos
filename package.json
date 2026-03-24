@@ -7,7 +7,7 @@
     "dev": "npm run dev:backend & npm run dev:frontend",
     "dev:backend": "node server.js",
     "dev:frontend": "cd frontend && npm run dev",
-    "build": "npm run migrate && cd frontend && npm run build",
+    "build": "cd frontend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "migrate": "node migrate.js",
     "preview": "cd frontend && npm run preview"

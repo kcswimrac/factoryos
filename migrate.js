@@ -1,7 +1,7 @@
 /**
  * Database Migration Runner (MySQL)
  *
- * Runs on every deploy via `npm run build`.
+ * Runs automatically on server startup (first request) or via `node migrate.js`.
  *
  * How it works:
  * 1. Creates core tables (users, _migrations) - always runs, idempotent
@@ -149,7 +149,13 @@ async function runFolderMigrations(conn) {
   }
 }
 
-migrate().catch(err => {
-  console.error('Migration failed:', err.message);
-  process.exit(1);
-});
+// Export for use by server.js (lazy migration on first request)
+module.exports = migrate;
+
+// Run directly when called via `node migrate.js`
+if (require.main === module) {
+  migrate().catch(err => {
+    console.error('Migration failed:', err.message);
+    process.exit(1);
+  });
+}

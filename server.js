@@ -23,6 +23,24 @@ app.locals.pool = pool;
 
 app.use(express.json({ limit: '15mb' }));
 
+// Run migrations lazily on first request (handles Vercel serverless + local)
+let migrated = false;
+async function runMigrationsOnce() {
+  if (migrated) return;
+  migrated = true;
+  try {
+    const runMigrations = require('./migrate');
+    if (typeof runMigrations === 'function') {
+      await runMigrations();
+    }
+  } catch (err) {
+    console.error('[Migrate] Auto-migration skipped:', err.message);
+  }
+}
+app.use((req, res, next) => {
+  runMigrationsOnce().then(() => next()).catch(() => next());
+});
+
 // Auth middleware
 const { authenticateToken, optionalAuth, requireAuthForWrites, rateLimit } = require('./middleware/auth');
 
@@ -368,4 +386,5 @@ app.use((req, res) => {
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  runMigrationsOnce();
 });
