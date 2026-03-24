@@ -3,6 +3,8 @@
 -- Generated for MySQL Workbench (UP migrations only)
 -- ═══════════════════════════════════════════════════════════════════════
 
+SET SQL_SAFE_UPDATES = 0;
+
 CREATE DATABASE IF NOT EXISTS factoryos;
 USE factoryos;
 
