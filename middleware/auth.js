@@ -61,4 +61,56 @@ function signToken(user) {
   );
 }
 
-module.exports = { authenticateToken, optionalAuth, signToken };
+/**
+ * Blocks POST/PUT/PATCH/DELETE if req.user is not set.
+ * Use after optionalAuth on routes where GETs are public but writes need auth.
+ */
+function requireAuthForWrites(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next();
+  }
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: 'Authentication required for write operations', code: 'AUTH_REQUIRED' });
+  }
+  next();
+}
+
+/**
+ * Simple in-memory rate limiter.
+ * @param {object} opts
+ * @param {number} opts.windowMs  — time window in ms (default 60 000)
+ * @param {number} opts.max       — max requests per window (default 10)
+ * @param {function} [opts.keyFn] — extracts key from req (default: IP)
+ */
+function rateLimit({ windowMs = 60000, max = 10, keyFn } = {}) {
+  const hits = new Map();
+
+  // Cleanup stale entries every windowMs
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of hits) {
+      if (now - entry.start > windowMs) hits.delete(key);
+    }
+  }, windowMs).unref();
+
+  return (req, res, next) => {
+    const key = keyFn ? keyFn(req) : (req.ip || req.connection.remoteAddress || 'unknown');
+    const now = Date.now();
+    let entry = hits.get(key);
+
+    if (!entry || now - entry.start > windowMs) {
+      entry = { start: now, count: 0 };
+      hits.set(key, entry);
+    }
+
+    entry.count++;
+
+    if (entry.count > max) {
+      return res.status(429).json({ success: false, message: 'Too many requests. Please try again later.' });
+    }
+
+    next();
+  };
+}
+
+module.exports = { authenticateToken, optionalAuth, signToken, requireAuthForWrites, rateLimit };

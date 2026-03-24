@@ -24,7 +24,7 @@ app.locals.pool = pool;
 app.use(express.json({ limit: '15mb' }));
 
 // Auth middleware
-const { authenticateToken, optionalAuth } = require('./middleware/auth');
+const { authenticateToken, optionalAuth, requireAuthForWrites, rateLimit } = require('./middleware/auth');
 
 // Server-side analytics — track page views (no client JS needed)
 const { trackPageViews } = require('./middleware/analytics');
@@ -66,10 +66,10 @@ app.use('/api/projects', optionalAuth, projectsRouter);
 // optionalAuth handles them and the response is sent before the project-members
 // catch-all ever runs.
 const discoveryRouter = require('./routes/discovery');
-app.use('/api/projects/:projectId/discovery', optionalAuth, discoveryRouter);
+app.use('/api/projects/:projectId/discovery', optionalAuth, requireAuthForWrites, discoveryRouter);
 
 const discoveryAiRouter = require('./routes/discovery-ai');
-app.use('/api/projects/:projectId/discovery', optionalAuth, discoveryAiRouter);
+app.use('/api/projects/:projectId/discovery', optionalAuth, requireAuthForWrites, discoveryAiRouter);
 
 // ── Project members / RBAC management (auth required) ───────────────────────
 const projectMembersRouter = require('./routes/project-members');
@@ -84,22 +84,22 @@ app.use('/api/nodes', optionalAuth, nodesRouter);
 
 // Electronics properties, EDA linking, component selection (T3.1-T3.3)
 const electronicsRouter = require('./routes/electronics');
-app.use('/api/nodes', optionalAuth, electronicsRouter);
+app.use('/api/nodes', optionalAuth, requireAuthForWrites, electronicsRouter);
 
 // Power budget tracking (T3.4)
 const powerBudgetRouter = require('./routes/power-budget');
-app.use('/api/power-budget', optionalAuth, powerBudgetRouter);
+app.use('/api/power-budget', optionalAuth, requireAuthForWrites, powerBudgetRouter);
 
 // Git repos, firmware modules, builds, code reviews (T4.1, T4.2, T4.4, T4.5)
 const gitReposRouter = require('./routes/git-repos');
-app.use('/api/git', optionalAuth, gitReposRouter);
+app.use('/api/git', optionalAuth, requireAuthForWrites, gitReposRouter);
 
 // HW-SW interfaces: pin maps, register maps, protocols (T4.3)
 const hwSwRouter = require('./routes/hw-sw-interfaces');
-app.use('/api/hw-sw', optionalAuth, hwSwRouter);
+app.use('/api/hw-sw', optionalAuth, requireAuthForWrites, hwSwRouter);
 
 const requirementsRouter = require('./routes/requirements');
-app.use('/api/requirements', optionalAuth, requirementsRouter);
+app.use('/api/requirements', optionalAuth, requireAuthForWrites, requirementsRouter);
 
 const phasesRouter = require('./routes/phases');
 app.use('/api/nodes', optionalAuth, phasesRouter);
@@ -111,13 +111,13 @@ const aiGuidanceRouter = require('./routes/ai-guidance');
 app.use('/api/nodes', optionalAuth, aiGuidanceRouter);
 
 const doeRouter = require('./routes/doe');
-app.use('/api/doe', optionalAuth, doeRouter);
+app.use('/api/doe', optionalAuth, requireAuthForWrites, doeRouter);
 
 const eightdRouter = require('./routes/eightd');
-app.use('/api/eightd', optionalAuth, eightdRouter);
+app.use('/api/eightd', optionalAuth, requireAuthForWrites, eightdRouter);
 
 const sopsRouter = require('./routes/sops');
-app.use('/api/sops', optionalAuth, sopsRouter);
+app.use('/api/sops', optionalAuth, requireAuthForWrites, sopsRouter);
 
 const rendersRouter = require('./routes/renders');
 app.use('/api/nodes', optionalAuth, rendersRouter);
@@ -130,7 +130,7 @@ const exportRouter = require('./routes/export');
 app.use('/api/export', authenticateToken, exportRouter);
 
 const onboardingRouter = require('./routes/onboarding');
-app.use('/api/onboarding', onboardingRouter);
+app.use('/api/onboarding', rateLimit({ windowMs: 60000, max: 5 }), onboardingRouter);
 
 // ── Analytics (auth required — only logged-in users can view metrics) ────────
 const analyticsRouter = require('./routes/analytics');
@@ -140,47 +140,47 @@ app.use('/api/analytics', authenticateToken, analyticsRouter);
 
 // Experiments (DOE frontend — full factorial analysis engine)
 const experimentsRouter = require('./routes/experiments');
-app.use('/api/experiments', optionalAuth, experimentsRouter);
+app.use('/api/experiments', optionalAuth, requireAuthForWrites, experimentsRouter);
 
 // Experiment sharing (token-based guest access)
 const experimentSharesRouter = require('./routes/experiment-shares');
-app.use('/api/experiment-shares', optionalAuth, experimentSharesRouter);
+app.use('/api/experiment-shares', optionalAuth, requireAuthForWrites, experimentSharesRouter);
 
 // Design cycle (9-phase engineering methodology)
 const designCycleRouter = require('./routes/design-cycle');
-app.use('/api/design', optionalAuth, designCycleRouter);
+app.use('/api/design', optionalAuth, requireAuthForWrites, designCycleRouter);
 
 // Design reviews (T2.3 — SRR/PDR/CDR with findings and sign-off)
 const designReviewsRouter = require('./routes/design-reviews');
-app.use('/api/design/:projectId/reviews', optionalAuth, designReviewsRouter);
+app.use('/api/design/:projectId/reviews', optionalAuth, requireAuthForWrites, designReviewsRouter);
 
 // Trade studies (T2.4 — Pugh matrix scoring)
 const tradeStudiesRouter = require('./routes/trade-studies');
-app.use('/api/projects/:projectId/trade-studies', optionalAuth, tradeStudiesRouter);
+app.use('/api/projects/:projectId/trade-studies', optionalAuth, requireAuthForWrites, tradeStudiesRouter);
 
 // Resources (tool & asset inventory with checkout/return + T5.6 calibration enforcement)
 const resourcesInventoryRouter = require('./routes/resources-inventory');
-app.use('/api/resources', optionalAuth, resourcesInventoryRouter);
+app.use('/api/resources', optionalAuth, requireAuthForWrites, resourcesInventoryRouter);
 
 // Change control — ECR/ECN workflow (T5.1)
 const changeControlRouter = require('./routes/change-control');
-app.use('/api/change-control', optionalAuth, changeControlRouter);
+app.use('/api/change-control', optionalAuth, requireAuthForWrites, changeControlRouter);
 
 // Report generator (T5.2)
 const reportGeneratorRouter = require('./routes/report-generator');
-app.use('/api/reports', optionalAuth, reportGeneratorRouter);
+app.use('/api/reports', optionalAuth, requireAuthForWrites, reportGeneratorRouter);
 
 // Timeline with dependencies and critical path (T5.3)
 const timelineDepsRouter = require('./routes/timeline-deps');
-app.use('/api/timeline', optionalAuth, timelineDepsRouter);
+app.use('/api/timeline', optionalAuth, requireAuthForWrites, timelineDepsRouter);
 
 // Notifications + webhooks (T5.5)
 const notificationsRouter = require('./routes/notifications');
-app.use('/api/notifications', optionalAuth, notificationsRouter);
+app.use('/api/notifications', optionalAuth, requireAuthForWrites, notificationsRouter);
 
 // SOP execution (T2.5 — step-by-step with sign-off)
 const sopExecutionRouter = require('./routes/sop-execution');
-app.use('/api/sops/:sopId/executions', optionalAuth, sopExecutionRouter);
+app.use('/api/sops/:sopId/executions', optionalAuth, requireAuthForWrites, sopExecutionRouter);
 
 // Visitors (live SSE count)
 const visitorsRouter = require('./routes/visitors');

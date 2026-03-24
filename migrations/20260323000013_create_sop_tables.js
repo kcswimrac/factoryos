@@ -1,5 +1,5 @@
 module.exports = {
-  name: '20260323000017_create_sop_tables',
+  name: '20260323000013_create_sop_tables',
   up: async (conn) => {
     // SOPs table — linked_nodes is a JSON array of node IDs
     await conn.query(`

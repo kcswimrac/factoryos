@@ -3,7 +3,7 @@
  * Backfills project_id from linked nodes where possible.
  */
 module.exports = {
-  name: '20260323000015_add_project_id_to_doe_eightd',
+  name: '20260323000011_add_project_id_to_doe_eightd',
   async up(conn) {
     // ── doe_studies: add project_id column ──────────────────────────────────
     await conn.query(`

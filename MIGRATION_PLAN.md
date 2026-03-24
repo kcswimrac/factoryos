@@ -60,15 +60,14 @@ All 22 migration files need syntax conversion:
 - [ ] `20260323000004_add_project_mode.js`
 - [ ] `20260323000004_create_discovery_workspace.js`
 - [ ] `20260323000005_discovery_workspace.js`
-- [ ] `20260323000011_discovery_phase2.js`
-- [ ] `20260323000012_fix_demo_render_images.js`
-- [ ] `20260323000013_remove_demo_renders.js`
-- [ ] `20260323000014_requirement_derivation_tracking.js`
-- [ ] `20260323000015_add_project_id_to_doe_eightd.js`
-- [ ] `20260323000016_investor_contacts.js`
-- [ ] `20260323000017_create_sop_tables.js`
-- [ ] `20260323000017_create_sops.js`
-- [ ] `20260323000018_remove_old_heavy_motion_project.js`
+- [ ] `20260323000007_discovery_phase2.js`
+- [ ] `20260323000008_fix_demo_render_images.js`
+- [ ] `20260323000009_remove_demo_renders.js`
+- [ ] `20260323000010_requirement_derivation_tracking.js`
+- [ ] `20260323000011_add_project_id_to_doe_eightd.js`
+- [ ] `20260323000012_investor_contacts.js`
+- [ ] `20260323000013_create_sop_tables.js`
+- [ ] `20260323000014_remove_old_heavy_motion_project.js`
 
 ### 0.4 — Convert All Route Query Params
 

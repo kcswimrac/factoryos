@@ -1,5 +1,5 @@
 module.exports = {
-  name: '20260323000016_investor_contacts',
+  name: '20260323000012_investor_contacts',
   up: async (conn) => {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS investor_contacts (

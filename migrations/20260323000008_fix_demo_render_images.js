@@ -106,4 +106,4 @@ exports.down = async (conn) => {
   // No point reverting to broken URLs — leave local images in place on rollback
 };
 
-exports.name = '20260323000012_fix_demo_render_images';
+exports.name = '20260323000008_fix_demo_render_images';

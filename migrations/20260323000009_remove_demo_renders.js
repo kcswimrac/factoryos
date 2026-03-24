@@ -7,7 +7,7 @@
  */
 
 module.exports = {
-  name: '20260323000013_remove_demo_renders',
+  name: '20260323000009_remove_demo_renders',
   up: async (conn) => {
     await conn.query(`
       DELETE FROM node_renders
