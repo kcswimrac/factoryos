@@ -1135,4 +1135,339 @@ router.get('/:id/reports/:reportId/validate', async (req, res) => {
   res.json({ success: true, data: { valid: true, errors: [], warnings: [] } });
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// T2.1: Phase Gate Enforcement
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Gate type definitions (matches frontend/src/config/designPhases.js GATE_TYPES)
+const GATE_TYPES = {
+  cost:             { name: 'Cost Gate', ownerRole: 'Finance/Program Manager', phase: '3c' },
+  safety:           { name: 'Safety Gate', ownerRole: 'Safety Engineer', phase: '6' },
+  manufacturability:{ name: 'Manufacturability Gate', ownerRole: 'Manufacturing Engineer', phase: '3c' },
+  serviceability:   { name: 'Serviceability Gate', ownerRole: 'Service Engineering', phase: '3b' }
+};
+
+// GET /:id/phase-gates — get all gates for a project
+router.get('/:id/phase-gates', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const [rows] = await pool.query(
+      'SELECT * FROM design_phase_gates WHERE project_id = ? ORDER BY phase_key, gate_type',
+      [req.params.id]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// POST /:id/phase-gates/init — initialize gates for a project based on GATE_TYPES
+router.post('/:id/phase-gates/init', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const projectId = req.params.id;
+
+    for (const [gateType, config] of Object.entries(GATE_TYPES)) {
+      await pool.query(
+        `INSERT IGNORE INTO design_phase_gates (project_id, phase_key, gate_type, gate_name, owner_role)
+         VALUES (?, ?, ?, ?, ?)`,
+        [projectId, config.phase, gateType, config.name, config.ownerRole]
+      );
+    }
+
+    const [rows] = await pool.query(
+      'SELECT * FROM design_phase_gates WHERE project_id = ?', [projectId]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// PUT /:id/phase-gates/:gateId — approve/reject/waive a gate
+router.put('/:id/phase-gates/:gateId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { status, approvedBy, rejectionReason, waiverReason } = req.body;
+
+    if (!['approved', 'rejected', 'waived', 'pending'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid gate status' });
+    }
+
+    const updates = ['status = ?'];
+    const params = [status];
+
+    if (status === 'approved') {
+      updates.push('approved_by = ?', 'approved_at = NOW()');
+      params.push(approvedBy || 'System');
+    }
+    if (status === 'rejected') {
+      updates.push('rejection_reason = ?');
+      params.push(rejectionReason || '');
+    }
+    if (status === 'waived') {
+      updates.push('waiver_reason = ?');
+      params.push(waiverReason || '');
+    }
+
+    params.push(req.params.gateId);
+    await pool.query(`UPDATE design_phase_gates SET ${updates.join(', ')} WHERE id = ?`, params);
+    res.json({ success: true, message: `Gate ${status}` });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// POST /:id/phases/:phaseKey/check-gate — check if phase can be completed
+// Returns { canAdvance: bool, blockers: [...] }
+router.post('/:id/phases/:phaseKey/check-gate', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const projectId = parseInt(req.params.id, 10);
+    const pk = req.params.phaseKey;
+    const blockers = [];
+
+    // 1. Check all questions answered 'yes'
+    const [phases] = await pool.query(
+      'SELECT id FROM design_phases WHERE project_id = ? AND phase_number = ?',
+      [projectId, pk]
+    );
+    if (phases.length > 0) {
+      const [unanswered] = await pool.query(
+        `SELECT COUNT(*) AS cnt FROM design_phase_questions
+         WHERE phase_id = ? AND answer_status != 'yes'`,
+        [phases[0].id]
+      );
+      if (unanswered[0].cnt > 0) {
+        blockers.push({
+          type: 'questions',
+          message: `${unanswered[0].cnt} checklist question(s) not yet answered 'yes'`
+        });
+      }
+    }
+
+    // 2. Check required gates for this phase
+    const [pendingGates] = await pool.query(
+      `SELECT gate_name, gate_type, status FROM design_phase_gates
+       WHERE project_id = ? AND phase_key = ? AND status NOT IN ('approved', 'waived', 'not_required')`,
+      [projectId, pk]
+    );
+    for (const gate of pendingGates) {
+      blockers.push({
+        type: 'gate',
+        gateType: gate.gate_type,
+        message: `${gate.gate_name} is ${gate.status} — must be approved or waived`
+      });
+    }
+
+    // 3. Check that prior phases (sequentially) are completed
+    const phaseOrder = ['1', '2', '3a', '3b', '3c', '4', '5', '6', '7'];
+    const currentIdx = phaseOrder.indexOf(pk);
+    if (currentIdx > 0) {
+      const priorPhases = phaseOrder.slice(0, currentIdx);
+      const [incomplete] = await pool.query(
+        `SELECT phase_number, display_name FROM design_phases
+         WHERE project_id = ? AND phase_number IN (?) AND status != 'completed'`,
+        [projectId, priorPhases]
+      );
+      for (const p of incomplete) {
+        blockers.push({
+          type: 'prior_phase',
+          message: `Phase ${p.phase_number} (${p.display_name}) must be completed first`
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        canAdvance: blockers.length === 0,
+        blockers
+      }
+    });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// T2.2: Traceability Matrix Engine
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /:id/traceability-matrix — full bidirectional traceability for a project
+router.get('/:id/traceability-matrix', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const projectId = parseInt(req.params.id, 10);
+
+    // Get all requirements for this project
+    const [requirements] = await pool.query(
+      'SELECT * FROM design_requirements WHERE project_id = ? ORDER BY id',
+      [projectId]
+    );
+
+    // Get all traces for these requirements
+    const reqIds = requirements.map(r => r.id);
+    let traces = [];
+    if (reqIds.length > 0) {
+      [traces] = await pool.query(
+        'SELECT * FROM design_requirement_traces WHERE requirement_id IN (?)',
+        [reqIds]
+      );
+    }
+
+    // Get derivation links
+    let derivations = [];
+    if (reqIds.length > 0) {
+      // Check if requirement_derivations table exists (from factoryos requirements module)
+      try {
+        [derivations] = await pool.query(
+          `SELECT rd.*, r.title AS parent_title
+           FROM requirement_derivations rd
+           LEFT JOIN requirements r ON rd.parent_requirement_id = r.id
+           WHERE rd.child_requirement_id IN (?)`,
+          [reqIds]
+        );
+      } catch (e) {
+        // Table may not exist if using design_requirements instead of requirements
+        derivations = [];
+      }
+    }
+
+    // Build traceability matrix
+    const matrix = requirements.map(req => {
+      const reqTraces = traces.filter(t => t.requirement_id === req.id);
+      const reqDerivations = derivations.filter(d => d.child_requirement_id === req.id);
+
+      const analysisTraces = reqTraces.filter(t => t.trace_type === 'analysis');
+      const testTraces = reqTraces.filter(t => t.trace_type === 'test');
+      const documentTraces = reqTraces.filter(t => t.trace_type === 'document');
+
+      // Determine verification status
+      let verificationStatus = 'not_started';
+      const satisfiedTraces = reqTraces.filter(t => t.status === 'satisfied');
+      if (satisfiedTraces.length > 0 && satisfiedTraces.length === reqTraces.length) {
+        verificationStatus = 'verified';
+      } else if (reqTraces.length > 0) {
+        verificationStatus = 'in_progress';
+      }
+
+      return {
+        id: req.id,
+        title: req.title,
+        type: req.type,
+        priority: req.priority,
+        status: req.status,
+        verification_method: req.verification_method,
+        verification_status: verificationStatus,
+        node_id: req.node_id,
+        // Trace summary
+        analysis_traces: analysisTraces.length,
+        test_traces: testTraces.length,
+        document_traces: documentTraces.length,
+        total_traces: reqTraces.length,
+        // Derivation
+        derived_from: reqDerivations.map(d => ({
+          parentId: d.parent_requirement_id,
+          parentTitle: d.parent_title
+        })),
+        // Detailed traces
+        traces: reqTraces
+      };
+    });
+
+    // Coverage summary
+    const total = matrix.length;
+    const verified = matrix.filter(r => r.verification_status === 'verified').length;
+    const inProgress = matrix.filter(r => r.verification_status === 'in_progress').length;
+    const notStarted = matrix.filter(r => r.verification_status === 'not_started').length;
+    const critical = matrix.filter(r => r.priority === 'critical');
+    const criticalVerified = critical.filter(r => r.verification_status === 'verified').length;
+
+    res.json({
+      success: true,
+      data: {
+        matrix,
+        summary: {
+          total,
+          verified,
+          inProgress,
+          notStarted,
+          coveragePercent: total > 0 ? Math.round((verified / total) * 100) : 0,
+          criticalTotal: critical.length,
+          criticalVerified,
+          criticalCoveragePercent: critical.length > 0 ? Math.round((criticalVerified / critical.length) * 100) : 0
+        }
+      }
+    });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// GET /:id/traceability-matrix/export — CSV export of traceability matrix
+router.get('/:id/traceability-matrix/export', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const projectId = parseInt(req.params.id, 10);
+
+    const [requirements] = await pool.query(
+      'SELECT * FROM design_requirements WHERE project_id = ? ORDER BY id',
+      [projectId]
+    );
+
+    const reqIds = requirements.map(r => r.id);
+    let traces = [];
+    if (reqIds.length > 0) {
+      [traces] = await pool.query(
+        'SELECT * FROM design_requirement_traces WHERE requirement_id IN (?)',
+        [reqIds]
+      );
+    }
+
+    // Build CSV
+    const escCsv = (v) => `"${String(v || '').replace(/"/g, '""')}"`;
+    const headers = ['Req ID', 'Title', 'Type', 'Priority', 'Status', 'Verification Method',
+                     'Analysis Traces', 'Test Traces', 'Document Traces', 'Verified'];
+    const rows = requirements.map(req => {
+      const rt = traces.filter(t => t.requirement_id === req.id);
+      const analysisCount = rt.filter(t => t.trace_type === 'analysis').length;
+      const testCount = rt.filter(t => t.trace_type === 'test').length;
+      const docCount = rt.filter(t => t.trace_type === 'document').length;
+      const allSatisfied = rt.length > 0 && rt.every(t => t.status === 'satisfied');
+
+      return [
+        req.id, escCsv(req.title), req.type, req.priority, req.status,
+        req.verification_method, analysisCount, testCount, docCount,
+        allSatisfied ? 'YES' : 'NO'
+      ].join(',');
+    });
+
+    const csv = [headers.join(','), ...rows].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="traceability-matrix-project-${projectId}.csv"`);
+    res.send(csv);
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// GET /:id/traceability-matrix/query — bidirectional query
+// ?requirementId=X — "what verifies requirement X?"
+// ?traceType=test&status=satisfied — "what requirements have passed tests?"
+router.get('/:id/traceability-matrix/query', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const projectId = parseInt(req.params.id, 10);
+    const { requirementId, traceType, traceStatus, verificationMethod, priority } = req.query;
+
+    let sql = `
+      SELECT r.*, t.trace_type, t.trace_target_name, t.status AS trace_status
+      FROM design_requirements r
+      LEFT JOIN design_requirement_traces t ON r.id = t.requirement_id
+      WHERE r.project_id = ?`;
+    const params = [projectId];
+
+    if (requirementId) { sql += ' AND r.id = ?'; params.push(requirementId); }
+    if (traceType) { sql += ' AND t.trace_type = ?'; params.push(traceType); }
+    if (traceStatus) { sql += ' AND t.status = ?'; params.push(traceStatus); }
+    if (verificationMethod) { sql += ' AND r.verification_method = ?'; params.push(verificationMethod); }
+    if (priority) { sql += ' AND r.priority = ?'; params.push(priority); }
+
+    sql += ' ORDER BY r.id, t.id';
+
+    const [rows] = await pool.query(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 module.exports = router;

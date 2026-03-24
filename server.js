@@ -134,9 +134,21 @@ app.use('/api/experiment-shares', optionalAuth, experimentSharesRouter);
 const designCycleRouter = require('./routes/design-cycle');
 app.use('/api/design', optionalAuth, designCycleRouter);
 
+// Design reviews (T2.3 — SRR/PDR/CDR with findings and sign-off)
+const designReviewsRouter = require('./routes/design-reviews');
+app.use('/api/design/:projectId/reviews', optionalAuth, designReviewsRouter);
+
+// Trade studies (T2.4 — Pugh matrix scoring)
+const tradeStudiesRouter = require('./routes/trade-studies');
+app.use('/api/projects/:projectId/trade-studies', optionalAuth, tradeStudiesRouter);
+
 // Resources (tool & asset inventory with checkout/return)
 const resourcesInventoryRouter = require('./routes/resources-inventory');
 app.use('/api/resources', optionalAuth, resourcesInventoryRouter);
+
+// SOP execution (T2.5 — step-by-step with sign-off)
+const sopExecutionRouter = require('./routes/sop-execution');
+app.use('/api/sops/:sopId/executions', optionalAuth, sopExecutionRouter);
 
 // Visitors (live SSE count)
 const visitorsRouter = require('./routes/visitors');

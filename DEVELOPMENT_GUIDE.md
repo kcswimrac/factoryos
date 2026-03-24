@@ -95,19 +95,26 @@ factoryos/
 - **T1.3:** Added 2-way interaction effects to ANOVA (AB, AC, BC, etc.)
 - **T1.4:** Aligned backend to 7-phase model with 3a/3b/3c sub-phases (was incorrectly using 9 flat phases)
 
+### Tier 2 — Core Engineering Value
+- **T2.1: Phase gate enforcement** — `POST /api/design/:id/phases/:phaseKey/check-gate` validates: (a) all checklist questions answered, (b) required gates approved/waived, (c) prior phases completed. Returns `{ canAdvance, blockers[] }`. Gate CRUD at `/api/design/:id/phase-gates` with init, approve, reject, waive. Gate types match frontend config (cost, safety, manufacturability, serviceability).
+- **T2.2: Traceability matrix engine** — `GET /api/design/:id/traceability-matrix` returns full matrix with verification status rollup (verified/in_progress/not_started), coverage percentages, critical requirement tracking. CSV export at `/export`. Bidirectional query at `/query?requirementId=X&traceType=test&status=satisfied`.
+- **T2.3: Design review workflow** — New route `routes/design-reviews.js` mounted at `/api/design/:projectId/reviews`. Supports SRR/SDR/PDR/CDR/TRR review types. Findings with severity (critical/major/minor/observation), assigned_to, due dates, resolution tracking, verification sign-off. Finding summary with overdue count.
+- **T2.4: Trade study scoring (Pugh matrix)** — New route `routes/trade-studies.js` mounted at `/api/projects/:projectId/trade-studies`. Weighted criteria, multiple options with baseline indicator, batch score updates, auto-calculated weighted totals and rankings.
+- **T2.5: SOP execution mode** — New route `routes/sop-execution.js` mounted at `/api/sops/:sopId/executions`. Start execution session → sequential step sign-off (enforced order) → auto-complete when all steps done. Abort capability. Tracks who completed each step and when.
+
 ---
 
 ## What Still Needs to Be Done
 
-### Tier 2 — Core Engineering Value (Make It Useful)
+### Tier 2 — Core Engineering Value (COMPLETED)
 
 | # | Action | Module | Effort | Status |
 |---|--------|--------|--------|--------|
-| T2.1 | **Phase gate enforcement** — block advancement when artifacts/criteria not met | Design Cycle | 3 days | NOT STARTED |
-| T2.2 | **Traceability matrix engine** — query "what verifies this requirement?" and export as CSV/PDF | Requirements | 3 days | NOT STARTED |
-| T2.3 | **Design review workflow** — SRR/PDR/CDR with findings, action items, sign-off, due dates | Design Cycle | 5 days | NOT STARTED |
-| T2.4 | **Trade study scoring matrix** — weighted criteria, Pugh matrix in Discovery workspace | Discovery | 2 days | NOT STARTED |
-| T2.5 | **SOP execution mode** — step-by-step execution with sign-off and completion tracking | SOPs | 2 days | NOT STARTED |
+| T2.1 | **Phase gate enforcement** — check-gate endpoint validates questions, gates, and prior phases before advancement | Design Cycle | 3 days | DONE |
+| T2.2 | **Traceability matrix engine** — full matrix, CSV export, bidirectional query endpoint | Requirements | 3 days | DONE |
+| T2.3 | **Design review workflow** — SRR/PDR/CDR/TRR with findings, action items, severity, sign-off | Design Reviews | 5 days | DONE |
+| T2.4 | **Trade study scoring matrix** — weighted criteria, options, batch scoring, ranked results | Trade Studies | 2 days | DONE |
+| T2.5 | **SOP execution mode** — sequential step-by-step with sign-off, auto-complete, abort | SOP Execution | 2 days | DONE |
 
 ### Tier 3 — Electronics / PCB Domain (New Capability)
 
