@@ -178,32 +178,74 @@ All 25 action items across 5 tiers have been implemented. The platform now has:
 
 ---
 
-## Module Current State Assessment
+## Module Current State Assessment (Post Tier 5)
 
 ### Scores (1-10 = useless to production-ready)
 
 | Module | Score | Key Strength | Key Gap |
 |--------|-------|-------------|---------|
-| **Design Cycle** | 5/10 | Excellent 7-phase config with sub-phases and rigor tiers | No gate enforcement — can skip phases freely |
-| **Node Tree** | 6/10 | Good mech BOM hierarchy (7 node types) | No electronics/firmware node types |
-| **Requirements** | 5/10 | Derivation chains + verification methods | No traceability matrix, no bidirectional queries |
-| **DOE / Statistics** | 7/10 | Proper F-distribution, interactions, residuals | Missing RSM, Box-Behnken, Taguchi |
+| **Design Cycle** | 7/10 | 7-phase config + AI chat with project context | No mandatory gate enforcement in UI |
+| **Node Tree** | 7/10 | Mech BOM + electronics properties + vendor info | No constraint propagation between nodes |
+| **Requirements** | 7.5/10 | Derivation chains + traceability matrix report + traces | No bidirectional live queries (report-only) |
+| **DOE / Statistics** | 7/10 | F-distribution, interactions, residuals, constraints | Missing RSM, Box-Behnken, Taguchi |
 | **Quality (8D)** | 5/10 | 8-discipline framework | No RCA tools, no action tracking |
-| **Resources** | 8.5/10 | Production-ready inventory + checkout | Minor: no barcode scan, no enforcement |
-| **Discovery** | 7/10 | 8 object types, maturity tracking | No trade study scoring |
-| **SOPs** | 6/10 | Good authoring structure | No execution mode, no approval workflow |
-| **Timeline** | 6/10 | Gantt-style monthly view | No dependency tracking |
+| **Resources** | 9/10 | Inventory + checkout + calibration enforcement | Minor: no barcode scan |
+| **Discovery** | 8/10 | 8 object types, maturity tracking, trade studies (Pugh) | No weighted scoring export |
+| **SOPs** | 7.5/10 | Authoring + execution mode + compliance locking | No e-signature |
+| **Timeline** | 8/10 | Dependencies + critical path (forward/backward pass) | No resource leveling |
 | **Executive** | 6/10 | Access-gated dashboard | Demo KPIs, no real aggregation |
-| **Reporting** | 5/10 | Report library structure | No auto-generation from project data |
+| **Reporting** | 8/10 | 8 auto-generated report types from live data | No PDF export (JSON/CSV only) |
+| **Change Control** | 7.5/10 | ECR/ECN workflow with impact analysis | No approval routing |
+| **Notifications** | 7/10 | In-app + webhooks with HMAC signing | No email transport |
+| **Git/Firmware** | 7/10 | Firmware modules, builds, HW-FW compat matrix | No CI/CD integration |
+| **HW-SW Interface** | 7/10 | Pin maps, register maps, protocols | No auto-generation from EDA |
 
 ### Domain Coverage
 
 | Domain | Coverage | Key Gaps |
 |--------|----------|----------|
-| **Mechanical** | 70% | Missing: tolerances, materials DB, cost rollup, DFMEA |
-| **Electrical/PCB** | 10% | Missing: EDA linking, power budget, SI/PI, component selection |
-| **Firmware/Software** | 5% | Missing: git linking, HW-SW interfaces, build tracking |
-| **Cross-Domain** | 5% | Missing: constraint propagation, unified BOM, interface language |
+| **Mechanical** | 75% | Missing: tolerances, materials DB, cost rollup, DFMEA |
+| **Electrical/PCB** | 55% | Missing: SI/PI analysis, auto-schematic import |
+| **Firmware/Software** | 50% | Missing: CI/CD hooks, RTOS task modeling |
+| **Cross-Domain** | 35% | Missing: constraint propagation, unified BOM view |
+
+---
+
+## Deep-Dive Audit (2026-03-24) — Findings & Fixes
+
+### CRITICAL Issues (FIXED)
+
+| # | Issue | File | Fix Applied |
+|---|-------|------|------------|
+| 1 | PostgreSQL `$N` placeholders in MySQL database (~40 instances) | `routes/doe.js` | Replaced all `$${idx++}` with `?` in 6 PUT endpoints |
+| 2 | Syntax error: missing backtick + params in DELETE factor | `routes/doe.js:740` | Rewrote to SELECT first then DELETE with proper params |
+| 3 | Syntax error: missing backtick + params in DELETE constraint | `routes/doe.js:894` | Same fix as #2 |
+| 4 | Enum mismatch: firmware_builds uses `passed/failed`, firmware_modules uses `passing/failing` | `routes/git-repos.js:243` | Added status mapping: `passed→passing`, `failed→failing` |
+| 5 | Duplicate SOP migration with conflicting schemas | `migrations/20260323000017b` | Deleted legacy migration file |
+
+### MEDIUM Issues (FIXED)
+
+| # | Issue | File | Fix Applied |
+|---|-------|------|------------|
+| 6 | BOM export query selected ALL nodes (no project scoping) | `routes/report-generator.js:173` | Scoped to `design_requirements.node_id WHERE project_id = ?` |
+| 7 | Critical path topological sort bug: pushed to `sorted` instead of `queue` | `routes/timeline-deps.js:217` | Fixed Kahn's algorithm to enqueue correctly |
+| 8 | Missing GET individual firmware module | `routes/git-repos.js` | Added `GET /firmware/:moduleId` |
+| 9 | Missing DELETE firmware module | `routes/git-repos.js` | Added `DELETE /firmware/:moduleId` |
+| 10 | Missing DELETE firmware build | `routes/git-repos.js` | Added `DELETE /builds/:buildId` |
+| 11 | Missing DELETE compatibility entry | `routes/git-repos.js` | Added `DELETE /compatibility/:compatId` |
+| 12 | Missing GET individual register map | `routes/hw-sw-interfaces.js` | Added `GET /register-maps/:regId` |
+| 13 | Missing GET individual protocol | `routes/hw-sw-interfaces.js` | Added `GET /protocols/:protocolId` |
+
+### Remaining Action Plan (Not Yet Done)
+
+| Priority | Action | Effort | Notes |
+|----------|--------|--------|-------|
+| HIGH | Add rate limiting to `/api/onboarding/setup` | 1 hour | Unauthenticated endpoint allows unlimited team creation |
+| HIGH | Add `req.user` validation on write operations in routes without RBAC | 2 days | 31 of 38 route files rely solely on `optionalAuth` |
+| MEDIUM | Document multiple-router mount order for `/api/nodes` | 1 hour | 5 routers share the path — order-dependent |
+| MEDIUM | Add DELETE endpoint for electronics properties | 30 min | `DELETE /api/nodes/:nodeId/electronics` |
+| LOW | Fill migration number gap (000007-000010) | 30 min | Cosmetic — functionality unaffected |
+| LOW | Standardize index naming conventions across migrations | 1 hour | Mix of `idx_table_col` and `table_col_idx` |
 
 ---
 

@@ -238,12 +238,43 @@ router.post('/builds', async (req, res) => {
     );
 
     // Update module current version and build status
+    // Map build-level status to module-level status (passed→passing, failed→failing)
+    const moduleStatus = { passed: 'passing', failed: 'failing', building: 'unstable' }[buildStatus] || 'unknown';
     await pool.query(
       'UPDATE firmware_modules SET current_version = ?, build_status = ?, last_build_at = NOW() WHERE id = ?',
-      [version, buildStatus || 'passing', moduleId]
+      [version, moduleStatus, moduleId]
     );
 
     res.status(201).json({ success: true, data: { id: result.insertId } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// GET individual firmware module
+router.get('/firmware/:moduleId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const [rows] = await pool.query('SELECT * FROM firmware_modules WHERE id = ?', [req.params.moduleId]);
+    if (rows.length === 0) return res.status(404).json({ success: false, error: 'Module not found' });
+    res.json({ success: true, data: rows[0] });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// DELETE firmware module
+router.delete('/firmware/:moduleId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    await pool.query('DELETE FROM firmware_builds WHERE module_id = ?', [req.params.moduleId]);
+    await pool.query('DELETE FROM firmware_modules WHERE id = ?', [req.params.moduleId]);
+    res.json({ success: true, message: 'Module and builds deleted' });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// DELETE firmware build
+router.delete('/builds/:buildId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    await pool.query('DELETE FROM firmware_builds WHERE id = ?', [req.params.buildId]);
+    res.json({ success: true, message: 'Build deleted' });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
@@ -287,6 +318,15 @@ router.post('/compatibility', async (req, res) => {
     );
 
     res.json({ success: true, message: 'Compatibility entry saved' });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+// DELETE compatibility entry
+router.delete('/compatibility/:compatId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    await pool.query('DELETE FROM hw_fw_compatibility WHERE id = ?', [req.params.compatId]);
+    res.json({ success: true, message: 'Compatibility entry deleted' });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 

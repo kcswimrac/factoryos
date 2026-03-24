@@ -167,10 +167,11 @@ async function generateGateStatus(pool, projectId) {
 }
 
 async function generateBomExport(pool, projectId) {
+  // Get all nodes linked to this project via design_requirements
   const [nodes] = await pool.query(
     `SELECT n.*, nv.vendor_name, nv.vendor_part_number, nv.unit_price, nv.sourcing_status
      FROM nodes n LEFT JOIN node_vendor_info nv ON n.id = nv.node_id
-     WHERE n.id IN (SELECT node_id FROM design_requirements WHERE project_id = ? UNION SELECT id FROM nodes)
+     WHERE n.id IN (SELECT DISTINCT node_id FROM design_requirements WHERE project_id = ? AND node_id IS NOT NULL)
      ORDER BY n.type, n.name`,
     [projectId]
   );

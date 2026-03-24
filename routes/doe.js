@@ -453,20 +453,19 @@ router.put('/studies/:id', async (req, res) => {
 
   const fields = [];
   const values = [];
-  let idx = 1;
 
-  if (title               !== undefined) { fields.push(`title = $${idx++}`);               values.push(title); }
-  if (objective           !== undefined) { fields.push(`objective = $${idx++}`);            values.push(objective); }
-  if (hypothesis          !== undefined) { fields.push(`hypothesis = $${idx++}`);           values.push(hypothesis); }
-  if (experiment_goal     !== undefined) { fields.push(`experiment_goal = $${idx++}`);      values.push(experiment_goal); }
-  if (status              !== undefined) { fields.push(`status = $${idx++}`);               values.push(status); }
-  if (conclusions         !== undefined) { fields.push(`conclusions = $${idx++}`);          values.push(conclusions); }
-  if (recommended_settings !== undefined){ fields.push(`recommended_settings = $${idx++}`); values.push(recommended_settings); }
-  if (node_id             !== undefined) { fields.push(`node_id = $${idx++}`);              values.push(node_id || null); }
-  if (design_type         !== undefined) { fields.push(`design_type = $${idx++}`);          values.push(design_type); }
-  if (resolution          !== undefined) { fields.push(`resolution = $${idx++}`);           values.push(resolution); }
-  if (randomize_runs      !== undefined) { fields.push(`randomize_runs = $${idx++}`);       values.push(randomize_runs); }
-  if (run_order_locked    !== undefined) { fields.push(`run_order_locked = $${idx++}`);     values.push(run_order_locked); }
+  if (title               !== undefined) { fields.push(`title = ?`);               values.push(title); }
+  if (objective           !== undefined) { fields.push(`objective = ?`);            values.push(objective); }
+  if (hypothesis          !== undefined) { fields.push(`hypothesis = ?`);           values.push(hypothesis); }
+  if (experiment_goal     !== undefined) { fields.push(`experiment_goal = ?`);      values.push(experiment_goal); }
+  if (status              !== undefined) { fields.push(`status = ?`);               values.push(status); }
+  if (conclusions         !== undefined) { fields.push(`conclusions = ?`);          values.push(conclusions); }
+  if (recommended_settings !== undefined){ fields.push(`recommended_settings = ?`); values.push(recommended_settings); }
+  if (node_id             !== undefined) { fields.push(`node_id = ?`);              values.push(node_id || null); }
+  if (design_type         !== undefined) { fields.push(`design_type = ?`);          values.push(design_type); }
+  if (resolution          !== undefined) { fields.push(`resolution = ?`);           values.push(resolution); }
+  if (randomize_runs      !== undefined) { fields.push(`randomize_runs = ?`);       values.push(randomize_runs); }
+  if (run_order_locked    !== undefined) { fields.push(`run_order_locked = ?`);     values.push(run_order_locked); }
 
   if (!fields.length) {
     return res.status(400).json({ success: false, message: 'Nothing to update' });
@@ -476,7 +475,7 @@ router.put('/studies/:id', async (req, res) => {
 
   try {
     const [result] = await pool.query(
-      `UPDATE doe_studies SET ${fields.join(', ')} WHERE id = $${idx}`,
+      `UPDATE doe_studies SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if (!result.length) {
@@ -701,22 +700,21 @@ router.put('/factors/:fid', async (req, res) => {
 
   const fields = [];
   const values = [];
-  let idx = 1;
 
-  if (name         !== undefined) { fields.push(`name = $${idx++}`);         values.push(name); }
-  if (unit         !== undefined) { fields.push(`unit = $${idx++}`);         values.push(unit); }
-  if (levels       !== undefined) { fields.push(`levels = $${idx++}`);       values.push(JSON.stringify(levels)); }
-  if (factor_type  !== undefined) { fields.push(`factor_type = $${idx++}`);  values.push(factor_type); }
-  if (min_value    !== undefined) { fields.push(`min_value = $${idx++}`);    values.push(min_value); }
-  if (max_value    !== undefined) { fields.push(`max_value = $${idx++}`);    values.push(max_value); }
-  if (center_value !== undefined) { fields.push(`center_value = $${idx++}`); values.push(center_value); }
+  if (name         !== undefined) { fields.push(`name = ?`);         values.push(name); }
+  if (unit         !== undefined) { fields.push(`unit = ?`);         values.push(unit); }
+  if (levels       !== undefined) { fields.push(`levels = ?`);       values.push(JSON.stringify(levels)); }
+  if (factor_type  !== undefined) { fields.push(`factor_type = ?`);  values.push(factor_type); }
+  if (min_value    !== undefined) { fields.push(`min_value = ?`);    values.push(min_value); }
+  if (max_value    !== undefined) { fields.push(`max_value = ?`);    values.push(max_value); }
+  if (center_value !== undefined) { fields.push(`center_value = ?`); values.push(center_value); }
 
   if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
   values.push(fid);
 
   try {
     const [result] = await pool.query(
-      `UPDATE doe_factors SET ${fields.join(', ')} WHERE id = $${idx}`,
+      `UPDATE doe_factors SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if (!result.length) return res.status(404).json({ success: false, message: 'Factor not found' });
@@ -737,9 +735,10 @@ router.delete('/factors/:fid', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_factors', 'id', fid);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const [result] = await pool.query(`DELETE FROM doe_factors WHERE id = ?
-    if (!result.length) return res.status(404).json({ success: false, message: 'Factor not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
+    const [factor] = await pool.query(`SELECT study_id FROM doe_factors WHERE id = ?`, [fid]);
+    if (factor.length === 0) return res.status(404).json({ success: false, message: 'Factor not found' });
+    await pool.query(`DELETE FROM doe_factors WHERE id = ?`, [fid]);
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [factor[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete factor error', err);
@@ -787,15 +786,14 @@ router.put('/responses/:rid', async (req, res) => {
 
   const fields = [];
   const values = [];
-  let idx = 1;
-  if (name   !== undefined) { fields.push(`name = $${idx++}`);   values.push(name); }
-  if (unit   !== undefined) { fields.push(`unit = $${idx++}`);   values.push(unit); }
-  if (target !== undefined) { fields.push(`target = $${idx++}`); values.push(target); }
+  if (name   !== undefined) { fields.push(`name = ?`);   values.push(name); }
+  if (unit   !== undefined) { fields.push(`unit = ?`);   values.push(unit); }
+  if (target !== undefined) { fields.push(`target = ?`); values.push(target); }
   if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
   values.push(rid);
   try {
     const [result] = await pool.query(
-      `UPDATE doe_responses SET ${fields.join(', ')} WHERE id = $${idx}`,
+      `UPDATE doe_responses SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if (!result.length) return res.status(404).json({ success: false, message: 'Response not found' });
@@ -864,16 +862,15 @@ router.put('/constraints/:cid', async (req, res) => {
 
   const fields = [];
   const values = [];
-  let idx = 1;
-  if (name            !== undefined) { fields.push(`name = $${idx++}`);            values.push(name); }
-  if (description     !== undefined) { fields.push(`description = $${idx++}`);     values.push(description); }
-  if (constraint_type !== undefined) { fields.push(`constraint_type = $${idx++}`); values.push(constraint_type); }
-  if (expression      !== undefined) { fields.push(`expression = $${idx++}`);      values.push(expression); }
+  if (name            !== undefined) { fields.push(`name = ?`);            values.push(name); }
+  if (description     !== undefined) { fields.push(`description = ?`);     values.push(description); }
+  if (constraint_type !== undefined) { fields.push(`constraint_type = ?`); values.push(constraint_type); }
+  if (expression      !== undefined) { fields.push(`expression = ?`);      values.push(expression); }
   if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
   values.push(cid);
   try {
     const [result] = await pool.query(
-      `UPDATE doe_constraints SET ${fields.join(', ')} WHERE id = $${idx}`,
+      `UPDATE doe_constraints SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if (!result.length) return res.status(404).json({ success: false, message: 'Constraint not found' });
@@ -891,9 +888,10 @@ router.delete('/constraints/:cid', async (req, res) => {
   const projectId = await getProjectForDoeEntity(pool, 'doe_constraints', 'id', cid);
   if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
   try {
-    const [result] = await pool.query(`DELETE FROM doe_constraints WHERE id = ?
-    if (!result.length) return res.status(404).json({ success: false, message: 'Constraint not found' });
-    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [result[0].study_id]);
+    const [constraint] = await pool.query(`SELECT study_id FROM doe_constraints WHERE id = ?`, [cid]);
+    if (constraint.length === 0) return res.status(404).json({ success: false, message: 'Constraint not found' });
+    await pool.query(`DELETE FROM doe_constraints WHERE id = ?`, [cid]);
+    await pool.query(`UPDATE doe_studies SET updated_at = NOW() WHERE id = ?`, [constraint[0].study_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[DOE] delete constraint error', err);
@@ -941,22 +939,21 @@ router.put('/runs/:runId', async (req, res) => {
 
   const fields = [];
   const values = [];
-  let idx = 1;
 
-  if (factor_settings !== undefined) { fields.push(`factor_settings = $${idx++}`); values.push(JSON.stringify(factor_settings)); }
-  if (notes           !== undefined) { fields.push(`notes = $${idx++}`);           values.push(notes); }
-  if (status          !== undefined) { fields.push(`status = $${idx++}`);          values.push(status); }
-  if (operator        !== undefined) { fields.push(`operator = $${idx++}`);        values.push(operator); }
-  if (started_at      !== undefined) { fields.push(`started_at = $${idx++}`);      values.push(started_at); }
-  if (completed_at    !== undefined) { fields.push(`completed_at = $${idx++}`);    values.push(completed_at); }
-  if (sop_link        !== undefined) { fields.push(`sop_link = $${idx++}`);        values.push(sop_link); }
+  if (factor_settings !== undefined) { fields.push(`factor_settings = ?`); values.push(JSON.stringify(factor_settings)); }
+  if (notes           !== undefined) { fields.push(`notes = ?`);           values.push(notes); }
+  if (status          !== undefined) { fields.push(`status = ?`);          values.push(status); }
+  if (operator        !== undefined) { fields.push(`operator = ?`);        values.push(operator); }
+  if (started_at      !== undefined) { fields.push(`started_at = ?`);      values.push(started_at); }
+  if (completed_at    !== undefined) { fields.push(`completed_at = ?`);    values.push(completed_at); }
+  if (sop_link        !== undefined) { fields.push(`sop_link = ?`);        values.push(sop_link); }
 
   if (!fields.length) return res.status(400).json({ success: false, message: 'Nothing to update' });
   values.push(runId);
 
   try {
     const [result] = await pool.query(
-      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = $${idx}`,
+      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if (!result.length) return res.status(404).json({ success: false, message: 'Run not found' });
@@ -985,7 +982,6 @@ router.put('/runs/:runId/status', async (req, res) => {
 
   const fields = [`status = ?`];
   const values = [status];
-  let idx = 2;
 
   if (status === 'running' && !req.body.started_at) {
     fields.push(`started_at = NOW()`);
@@ -994,14 +990,14 @@ router.put('/runs/:runId/status', async (req, res) => {
     fields.push(`completed_at = NOW()`);
   }
   if (operator !== undefined) {
-    fields.push(`operator = $${idx++}`);
+    fields.push(`operator = ?`);
     values.push(operator);
   }
   values.push(runId);
 
   try {
     const [result] = await pool.query(
-      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = $${idx}`,
+      `UPDATE doe_runs SET ${fields.join(', ')} WHERE id = ?`,
       values
     );
     if (!result.length) return res.status(404).json({ success: false, message: 'Run not found' });

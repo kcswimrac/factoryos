@@ -115,6 +115,17 @@ router.get('/register-maps', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
+router.get('/register-maps/:regId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const [rows] = await pool.query('SELECT * FROM hw_sw_register_maps WHERE id = ?', [req.params.regId]);
+    if (rows.length === 0) return res.status(404).json({ success: false, error: 'Register map not found' });
+    const reg = rows[0];
+    if (typeof reg.bit_fields === 'string') reg.bit_fields = JSON.parse(reg.bit_fields);
+    res.json({ success: true, data: reg });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 router.post('/register-maps', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
@@ -178,6 +189,18 @@ router.get('/protocols', async (req, res) => {
       if (typeof r.timing_requirements === 'string') r.timing_requirements = JSON.parse(r.timing_requirements);
     });
     res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+router.get('/protocols/:protocolId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const [rows] = await pool.query('SELECT * FROM hw_sw_protocols WHERE id = ?', [req.params.protocolId]);
+    if (rows.length === 0) return res.status(404).json({ success: false, error: 'Protocol not found' });
+    const proto = rows[0];
+    if (typeof proto.message_format === 'string') proto.message_format = JSON.parse(proto.message_format);
+    if (typeof proto.timing_requirements === 'string') proto.timing_requirements = JSON.parse(proto.timing_requirements);
+    res.json({ success: true, data: proto });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 

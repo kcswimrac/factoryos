@@ -206,6 +206,8 @@ function topologicalSort(nodes) {
     });
   });
 
+  const nodeMap = {};
+  nodes.forEach(n => { nodeMap[n.id] = n; });
   const queue = nodes.filter(n => inDegree[n.id] === 0);
   const sorted = [];
   while (queue.length > 0) {
@@ -214,7 +216,7 @@ function topologicalSort(nodes) {
     adj[node.id].forEach(succId => {
       inDegree[succId]--;
       if (inDegree[succId] === 0) {
-        sorted.push(nodes.find(n => n.id === succId));
+        queue.push(nodeMap[succId]);
       }
     });
   }
