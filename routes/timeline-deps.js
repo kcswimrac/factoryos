@@ -226,6 +226,7 @@ router.get('/critical-path', async (req, res) => {
         criticalItems: criticalPath.length,
         hasCycles,
         warnings
+      }
     });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });

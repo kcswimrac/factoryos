@@ -259,29 +259,32 @@ VOUCHER VALID: ${data.voucherValid ? 'Yes' : 'No'}
   ];
 
   return (
-    <div className="min-h-screen bg-[#0F1114] text-[#F0F2F4]">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#F0F2F4]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {/* Grid Background */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
+          backgroundSize: '60px 60px'
+        }}
+      />
+      <div className="relative z-[1]">
       <MarketingHeader />
 
       {/* Hero Section */}
       <section className="pt-32 pb-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Background effects - green tinted */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
-          <div className="absolute top-40 right-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
-        </div>
-
-        <div className="max-w-4xl mx-auto text-center relative">
+        <div className="max-w-[900px] mx-auto relative">
           {/* Early Access Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full mb-8">
             <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-            <span className="text-sm text-emerald-400 font-medium">Early Development Build</span>
+            <span className="text-sm text-emerald-400 font-medium" style={{ fontFamily: "'DM Mono', monospace", fontSize: '12px', letterSpacing: '3px', textTransform: 'uppercase' }}>For Hardware Engineering Teams</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-[#F0F2F4] mb-6 leading-tight">
-            The Operating System for Engineering Teams Building Real Hardware
+          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold text-[#F0F2F4] mb-8 leading-[1.05]" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-2px' }}>
+            Good engineers.<br /><span className="text-emerald-500">Undisciplined process.</span>
           </h1>
-          <p className="text-xl text-[#B4BAC4] mb-8 max-w-3xl mx-auto leading-relaxed">
-            Factory-OS brings engineering design structure, experiment tracking, and standardized procedures into one system. Built for teams developing real products, vehicles, prototypes, and hardware systems.
+          <p className="text-xl text-[#a1a1aa] mb-8 max-w-[600px] leading-[1.7]">
+            Factory-OS enforces engineering rigor — phase gating, structured experiments, versioned SOPs. Not another place to store files. A system that teaches and holds your team to the process.
           </p>
 
           {/* CTA Block */}
@@ -336,6 +339,87 @@ VOUCHER VALID: ${data.voucherValid ? 'Yes' : 'No'}
           </div>
         </div>
       </section>
+
+      {/* Problem Section with Stats */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1100px] mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-start">
+            <div>
+              <h2 className="text-sm font-medium tracking-[3px] uppercase text-[#52525b] mb-6" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>The Problem</h2>
+              <p className="text-2xl sm:text-3xl font-semibold leading-[1.4]" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.5px' }}>
+                Most hardware failures trace back to <span className="text-emerald-500">design decisions</span> made without structure — no phase gates, no real experiments, no repeatable process.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 sm:gap-6">
+              {[
+                { number: '70%', label: 'of product failures are rooted in decisions made in the first 10% of development' },
+                { number: '3–5×', label: 'more design iterations than necessary without structured DOE' },
+                { number: '$5K+', label: 'per seat for enterprise PLM — built for procurement, not engineering' },
+                { number: '0', label: 'tools that enforce design methodology without requiring a consultant' }
+              ].map((stat, i) => (
+                <div key={i} className="bg-[#111111] border border-[#222222] rounded-xl p-6">
+                  <div className="text-3xl sm:text-4xl font-bold text-emerald-500 mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{stat.number}</div>
+                  <div className="text-[13px] text-[#a1a1aa] leading-[1.5]">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <hr className="border-none h-px mx-10" style={{ background: 'linear-gradient(90deg, transparent, #2e2e2e 20%, #2e2e2e 80%, transparent)' }} />
+
+      {/* Three Pillars Section */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1100px] mx-auto">
+          <div className="mb-16">
+            <h2 className="text-sm font-medium tracking-[3px] uppercase text-[#52525b] mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Three Pillars</h2>
+            <p className="text-3xl font-semibold max-w-[640px]" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.5px' }}>
+              Engineering discipline has a shape. Factory-OS enforces it.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[2px] bg-[#222222] border border-[#222222] rounded-2xl overflow-hidden">
+            {[
+              {
+                tag: '01 / RIGOR',
+                title: 'Design Rigor',
+                desc: 'Structured engineering lifecycle with enforced phase gating. Your design can\'t move forward until it\'s earned the right to — evidence required, not optional.',
+                items: ['Concept → Feasibility → Detailed Design → Verification', 'Phase gate checklists tied to actual deliverables', 'No skipping phases without a documented exception', 'Full audit trail of design decisions and approvals']
+              },
+              {
+                tag: '02 / DOE',
+                title: 'Design of Experiments',
+                desc: 'Real statistical studies, not gut-check prototypes. Run Full Factorial, Fractional Factorial, and Plackett-Burman studies with proper analysis built in.',
+                items: ['Full Factorial & Fractional Factorial designs', 'Plackett-Burman for factor screening', 'Main effects, interactions, response surface', 'Outputs tied directly to design decisions']
+              },
+              {
+                tag: '03 / SOPs',
+                title: 'Standard Operating Procedures',
+                desc: 'Version-controlled, repeatable procedures that live where the work happens. Not in a shared drive no one updates. Not in someone\'s head when they leave.',
+                items: ['Versioned SOP library with change history', 'Linked directly to phases and experiments', 'Approval workflows for procedure changes', 'Execution logs when SOPs are followed']
+              }
+            ].map((pillar, i) => (
+              <div key={i} className="bg-[#111111] p-10 hover:bg-[#181818] transition-colors duration-300">
+                <span className="inline-block px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/25 rounded-md text-emerald-500 text-[11px] tracking-[1px] mb-6" style={{ fontFamily: "'DM Mono', monospace" }}>{pillar.tag}</span>
+                <h3 className="text-xl font-bold mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.5px' }}>{pillar.title}</h3>
+                <p className="text-[15px] text-[#a1a1aa] leading-[1.75] mb-6">{pillar.desc}</p>
+                <ul className="flex flex-col gap-2.5">
+                  {pillar.items.map((item, j) => (
+                    <li key={j} className="flex items-center gap-2 text-[12px] text-[#52525b] tracking-[0.3px]" style={{ fontFamily: "'DM Mono', monospace" }}>
+                      <span className="text-emerald-700">→</span> {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <hr className="border-none h-px mx-10" style={{ background: 'linear-gradient(90deg, transparent, #2e2e2e 20%, #2e2e2e 80%, transparent)' }} />
 
       {/* Featured Modules Section */}
       <section id="featured-modules" className="py-20 px-4 sm:px-6 lg:px-8">
@@ -535,6 +619,43 @@ VOUCHER VALID: ${data.voucherValid ? 'Yes' : 'No'}
         </div>
       </section>
 
+      {/* Comparison Table */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[800px] mx-auto">
+          <h2 className="text-sm font-medium tracking-[3px] uppercase text-[#52525b] mb-10" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>How We Compare</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="text-left px-5 py-4 border-b border-[#222222] text-[11px] tracking-[2px] uppercase text-[#52525b] font-medium" style={{ fontFamily: "'DM Mono', monospace" }}></th>
+                  <th className="text-left px-5 py-4 border-b border-[#222222] text-[11px] tracking-[2px] uppercase text-[#52525b] font-medium" style={{ fontFamily: "'DM Mono', monospace" }}>Spreadsheets &amp; PLM</th>
+                  <th className="text-left px-5 py-4 border-b border-[#222222] text-[11px] tracking-[2px] uppercase text-[#52525b] font-medium" style={{ fontFamily: "'DM Mono', monospace" }}>Factory-OS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Process enforcement', 'Optional. Nobody checks.', 'Built-in phase gates'],
+                  ['Design experiments', 'Ad hoc or skipped', 'Structured DOE with analysis'],
+                  ['SOPs', 'Stale docs in a drive', 'Versioned, linked, enforced'],
+                  ['Positioning', 'File storage / ERP add-on', 'Engineering methodology tool'],
+                  ['Teaches discipline', 'No', 'Yes — opinionated by design'],
+                  ['Price', '$5K–$15K/seat (enterprise)', '$49/user/month']
+                ].map(([feature, them, us], i) => (
+                  <tr key={i}>
+                    <td className="px-5 py-4 border-b border-[#222222] text-sm text-[#a1a1aa]">{feature}</td>
+                    <td className="px-5 py-4 border-b border-[#222222] text-sm text-[#52525b]">{them}</td>
+                    <td className="px-5 py-4 border-b border-[#222222] text-sm text-emerald-500 font-semibold">{us}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Divider */}
+      <hr className="border-none h-px mx-10" style={{ background: 'linear-gradient(90deg, transparent, #2e2e2e 20%, #2e2e2e 80%, transparent)' }} />
+
       {/* Baja / Student Team Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
@@ -632,13 +753,13 @@ VOUCHER VALID: ${data.voucherValid ? 'Yes' : 'No'}
       </section>
 
       {/* Final CTA Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-emerald-600/10 border-t border-emerald-500/20">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#F0F2F4] mb-4">
-            Join the Early Access Program
+      <section className="py-28 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[700px] mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#F0F2F4] mb-6 leading-[1.2]" style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-1px' }}>
+            Engineering discipline is <span className="text-emerald-500">learnable.</span><br />It should also be enforced.
           </h2>
-          <p className="text-[#B4BAC4] mb-8">
-            We are actively building Factory-OS and looking for engineering teams to help shape the product.
+          <p className="text-[17px] text-[#a1a1aa] leading-[1.8] mb-8">
+            Factory-OS is the TurboTax for engineering process — opinionated, structured, and priced for teams who aren't Fortune 500. It doesn't just store your work. It holds you to a standard.
           </p>
 
           {/* CTA to open form modal */}
@@ -657,41 +778,27 @@ VOUCHER VALID: ${data.voucherValid ? 'Yes' : 'No'}
       </section>
 
       {/* Footer */}
-      <footer className="bg-[#0F1114] text-[#6B7280] py-12 px-4 sm:px-6 lg:px-8 border-t border-[#2A2F36]">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-center md:text-left">
-              <h3 className="text-[#F0F2F4] font-bold text-lg mb-1">Factory-OS</h3>
-              <p className="text-sm text-[#4B5563]">Early Development Build</p>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <button
-                onClick={() => navigate('/login')}
-                className="text-sm hover:text-emerald-400 transition"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => navigate('/login')}
-                className="text-sm text-emerald-400 hover:text-emerald-300 transition"
-              >
-                Request Access
-              </button>
-            </div>
+      <footer className="py-10 px-10 border-t border-[#222222]">
+        <div className="max-w-[1100px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="text-sm text-[#52525b]" style={{ fontFamily: "'DM Mono', monospace" }}>
+            factory<span className="text-emerald-700">-os</span>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-[#2A2F36] text-center">
-            <p className="text-xs text-[#4B5563] max-w-2xl mx-auto">
-              Factory-OS is under active development. Features and interfaces will continue evolving based on user feedback.
-            </p>
-            <p className="text-xs text-[#4B5563] mt-4">
-              factory-os.com
-            </p>
+          <div className="flex items-center gap-5">
+            <a href="/privacy" className="text-xs text-[#52525b] hover:text-emerald-500 transition">Privacy Policy</a>
+            <a href="/terms" className="text-xs text-[#52525b] hover:text-emerald-500 transition">Terms of Use</a>
+            <button
+              onClick={() => navigate('/login')}
+              className="text-xs text-[#52525b] hover:text-emerald-500 transition"
+            >
+              Sign In
+            </button>
+            <a href="/invest" className="text-xs text-[#52525b] hover:text-emerald-500 transition" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '1px', textTransform: 'uppercase' }}>Invest</a>
           </div>
-          <a href="#interest-form" className="inline-flex items-center justify-center border border-emerald-400/35 text-emerald-300 hover:bg-emerald-400/10 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors">
-            Join Early Access
-          </a>
+
+          <div className="text-xs text-[#52525b]">
+            Engineering Discipline Software
+          </div>
         </div>
       </footer>
 
@@ -858,6 +965,7 @@ VOUCHER VALID: ${data.voucherValid ? 'Yes' : 'No'}
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };
