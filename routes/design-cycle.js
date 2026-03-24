@@ -1275,6 +1275,16 @@ router.put('/:id/phase-gates/:gateId', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
+// DELETE /:id/phase-gates/:gateId — remove a gate
+router.delete('/:id/phase-gates/:gateId', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    await pool.query('DELETE FROM design_phase_gates WHERE id = ? AND project_id = ?',
+      [req.params.gateId, req.params.id]);
+    res.json({ success: true, message: 'Gate deleted' });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 // POST /:id/phases/:phaseKey/check-gate — check if phase can be completed
 // Returns { canAdvance: bool, blockers: [...] }
 router.post('/:id/phases/:phaseKey/check-gate', async (req, res) => {
