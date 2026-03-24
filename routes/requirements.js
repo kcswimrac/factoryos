@@ -282,8 +282,7 @@ router.get('/project', async (req, res) => {
            n.name AS node_name, n.part_number AS node_part_number
     FROM requirements r
     JOIN nodes n ON n.id = r.node_id
-    JOIN project_nodes pn ON pn.node_id = n.id
-    WHERE pn.project_id = ?
+    WHERE n.project_id = ?
     ORDER BY r.req_id ASC
   `, [projectId]);
 

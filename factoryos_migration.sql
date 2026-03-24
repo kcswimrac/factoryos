@@ -1,7 +1,9 @@
 -- ═══════════════════════════════════════════════════════════════════════
 -- Factory-OS Complete Database Migration Script
--- Generated for MySQL Workbench
+-- Generated for MySQL Workbench (UP migrations only)
 -- ═══════════════════════════════════════════════════════════════════════
+
+SET SQL_SAFE_UPDATES = 0;
 
 CREATE DATABASE IF NOT EXISTS factoryos;
 USE factoryos;
@@ -172,16 +174,6 @@ CREATE INDEX doe_run_results_run_idx ON doe_run_results(run_id);
 
 CREATE INDEX doe_studies_node_idx ON doe_studies(node_id);
 
-DROP TABLE IF EXISTS doe_run_results CASCADE;
-
-DROP TABLE IF EXISTS doe_runs CASCADE;
-
-DROP TABLE IF EXISTS doe_responses CASCADE;
-
-DROP TABLE IF EXISTS doe_factors CASCADE;
-
-DROP TABLE IF EXISTS doe_studies CASCADE;
-
 -- ─── Migration: 20260322000002_create_projects.js ───
 CREATE TABLE IF NOT EXISTS projects (
         id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -249,87 +241,6 @@ UPDATE teams SET name = 'Greyline Technologies',  slug = 'greyline',    descript
 
 UPDATE teams SET name = 'Heavy Motion Industries', slug = 'heavy-motion', description = 'High-voltage hybrid powertrain development team.' WHERE slug = 'torque-pray';
 
-UPDATE teams SET name = 'South Harmon Institute of Technology', slug = 'shit',       description = 'Collegiate engineering team building the Baja SAE 2025 off-road vehicle.' WHERE slug = 'full-send';
-
-UPDATE teams SET name = 'Definitely Not DARPA, LLC',           slug = 'darpa-llc',  description = 'Autonomous systems research team. Totally civilian.'                   WHERE slug = 'greyline';
-
-UPDATE teams SET name = 'Torque & Pray Heavy Industries',       slug = 'torque-pray', description = 'High-voltage hybrid powertrain development team.'                    WHERE slug = 'heavy-motion';
-
--- ─── Migration: 20260322000006_create_node_renders.js ───
-CREATE TABLE IF NOT EXISTS node_renders (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      node_id INTEGER NOT NULL REFERENCES nodes ON DELETE CASCADE,
-      label VARCHAR(255) DEFAULT '',
-      source_type VARCHAR(20) NOT NULL DEFAULT 'url',
-      url TEXT,
-      base64 TEXT,
-      mime_type VARCHAR(50) DEFAULT 'image/jpeg',
-      file_size INTEGER,
-      position INTEGER DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-CREATE INDEX node_renders_node_id_idx ON node_renders (node_id);
-
-DROP TABLE IF EXISTS node_renders CASCADE;
-
--- ─── Migration: 20260322000007_create_node_vendor_info.js ───
-CREATE TABLE IF NOT EXISTS node_vendor_info (
-      id                INT AUTO_INCREMENT PRIMARY KEY,
-      node_id           INTEGER NOT NULL UNIQUE REFERENCES nodes ON DELETE CASCADE,
-      vendor_name       VARCHAR(255),
-      vendor_part_number VARCHAR(255),
-      vendor_url        TEXT,
-      specs_summary     TEXT,
-      lead_time         VARCHAR(255),
-      unit_price        NUMERIC(12,4),
-      pricing_notes     TEXT,
-      sourcing_status   VARCHAR(50) DEFAULT 'evaluating',
-      created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
-
-CREATE INDEX node_vendor_info_node_id_idx ON node_vendor_info (node_id);
-
-CREATE TABLE IF NOT EXISTS node_cutsheets (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      node_id     INTEGER NOT NULL REFERENCES nodes ON DELETE CASCADE,
-      label       VARCHAR(255) DEFAULT '',
-      file_name   VARCHAR(255),
-      base64      TEXT,
-      mime_type   VARCHAR(100) DEFAULT 'application/pdf',
-      file_size   INTEGER,
-      position    INTEGER DEFAULT 0,
-      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-CREATE INDEX node_cutsheets_node_id_idx ON node_cutsheets (node_id);
-
-DROP TABLE IF EXISTS node_cutsheets CASCADE;
-
-DROP TABLE IF EXISTS node_vendor_info CASCADE;
-
--- ─── Migration: 20260322000008_create_eightd_attachments.js ───
-CREATE TABLE IF NOT EXISTS eightd_attachments (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      report_id   INTEGER NOT NULL REFERENCES eightd_reports(id) ON DELETE CASCADE,
-      disc_key    VARCHAR(4) NOT NULL,
-      filename    TEXT NOT NULL,
-      mime_type   VARCHAR(100) NOT NULL DEFAULT 'application/octet-stream',
-      file_size   INTEGER,
-      base64      TEXT NOT NULL,
-      description TEXT,
-      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-CREATE INDEX eightd_attachments_report_id_idx
-      ON eightd_attachments (report_id);
-
-CREATE INDEX eightd_attachments_disc_idx
-      ON eightd_attachments (report_id, disc_key);
-
-DROP TABLE IF EXISTS eightd_attachments CASCADE;
-
 -- ─── Migration: 20260322000009_create_auth_tables.js ───
 ALTER TABLE users
         ADD COLUMN reset_token VARCHAR(255);
@@ -395,7 +306,7 @@ INSERT INTO project_members (project_id, user_id, role)
       JOIN teams t ON t.id = p.team_id
       JOIN team_members tm ON tm.team_id = t.id AND tm.role = 'owner'
       WHERE p.is_demo = 0
-      ON DUPLICATE KEY UPDATE role = role;
+      ON DUPLICATE KEY UPDATE project_members.role = project_members.role;
 
 -- ─── Migration: 20260323000001_doe_phase1_extensions.js ───
 ALTER TABLE doe_studies
@@ -473,56 +384,14 @@ CREATE TABLE IF NOT EXISTS doe_decisions (
 
 CREATE UNIQUE INDEX doe_decisions_study_uniq ON doe_decisions(study_id);
 
-DROP TABLE IF EXISTS doe_decisions;
-
-DROP TABLE IF EXISTS doe_constraints;
-
-ALTER TABLE doe_runs DROP COLUMN run_order;
-
-ALTER TABLE doe_runs DROP COLUMN sop_link;
-
-ALTER TABLE doe_runs DROP COLUMN completed_at;
-
-ALTER TABLE doe_runs DROP COLUMN started_at;
-
-ALTER TABLE doe_runs DROP COLUMN operator;
-
-ALTER TABLE doe_runs DROP COLUMN status;
-
-ALTER TABLE doe_factors DROP COLUMN center_value;
-
-ALTER TABLE doe_factors DROP COLUMN max_value;
-
-ALTER TABLE doe_factors DROP COLUMN min_value;
-
-ALTER TABLE doe_factors DROP COLUMN factor_type;
-
-ALTER TABLE doe_studies DROP COLUMN run_order_locked;
-
-ALTER TABLE doe_studies DROP COLUMN randomize_runs;
-
-ALTER TABLE doe_studies DROP COLUMN resolution;
-
-ALTER TABLE doe_studies DROP COLUMN design_type;
-
-ALTER TABLE doe_studies DROP COLUMN experiment_goal;
-
-ALTER TABLE doe_studies DROP COLUMN hypothesis;
-
 -- ─── Migration: 20260323000002_public_project_share.js ───
 ALTER TABLE projects
-        ADD COLUMN share_token VARCHAR(36) UNIQUE DEFAULT (UUID());
+        ADD COLUMN share_token VARCHAR(36) UNIQUE;
 
 ALTER TABLE projects
         ADD COLUMN is_public   TINYINT(1) NOT NULL DEFAULT 0;
 
 CREATE INDEX projects_share_token_idx ON projects(share_token);
-
-DROP INDEX projects_share_token_idx ON projects;
-
-ALTER TABLE projects DROP COLUMN is_public;
-
-ALTER TABLE projects DROP COLUMN share_token;
 
 -- ─── Migration: 20260323000003_phase_revisions.js ───
 CREATE TABLE IF NOT EXISTS node_phase_revisions (
@@ -542,13 +411,9 @@ CREATE INDEX node_phase_revisions_node_idx
 CREATE UNIQUE INDEX node_phase_revisions_node_label_uniq
         ON node_phase_revisions(node_id, revision_label);
 
-DROP TABLE IF EXISTS node_phase_revisions;
-
 -- ─── Migration: 20260323000004_add_project_mode.js ───
 ALTER TABLE projects
         ADD COLUMN project_mode VARCHAR(20) NOT NULL DEFAULT 'top_down';
-
-ALTER TABLE projects DROP COLUMN project_mode;
 
 -- ─── Migration: 20260323000005_discovery_workspace.js ───
 CREATE TABLE IF NOT EXISTS discovery_objects (
@@ -582,10 +447,6 @@ CREATE TABLE IF NOT EXISTS discovery_attachments (
 CREATE INDEX discovery_attachments_object_idx
         ON discovery_attachments(object_id);
 
-DROP TABLE IF EXISTS discovery_attachments;
-
-DROP TABLE IF EXISTS discovery_objects;
-
 -- ─── Migration: 20260323000006_discovery_promotions.js ───
 ALTER TABLE discovery_objects
         ADD COLUMN promoted_node_id INTEGER REFERENCES nodes(id) ON DELETE SET NULL;
@@ -610,14 +471,6 @@ CREATE INDEX discovery_promotions_object_idx
 
 CREATE INDEX discovery_promotions_node_idx
         ON discovery_promotions(node_id);
-
-DROP TABLE IF EXISTS discovery_promotions;
-
-ALTER TABLE discovery_objects DROP COLUMN promoted_by;
-
-ALTER TABLE discovery_objects DROP COLUMN promoted_at;
-
-ALTER TABLE discovery_objects DROP COLUMN promoted_node_id;
 
 -- ─── Migration: 20260323000007_discovery_phase2.js ───
 ALTER TABLE discovery_objects
@@ -673,34 +526,6 @@ CREATE INDEX discovery_arch_obj_arch_idx
 CREATE INDEX discovery_arch_obj_obj_idx
         ON discovery_architecture_objects(object_id);
 
-DROP TABLE IF EXISTS discovery_architecture_objects;
-
-DROP TABLE IF EXISTS discovery_architectures;
-
-DROP TABLE IF EXISTS discovery_relationships;
-
-ALTER TABLE discovery_objects DROP COLUMN functional_cluster;
-
--- ─── Migration: 20260323000008_fix_demo_render_images.js ───
-UPDATE node_renders SET url = ?
-      WHERE url = ?
-        AND node_id IN (
-          SELECT n.id FROM nodes n
-          JOIN projects p ON n.project_id = p.id
-          WHERE p.slug = 'baja-sae-2025' AND p.is_demo = 1
-        );
-
-UPDATE node_renders SET url = ?
-      WHERE url = ?
-        AND node_id IN (
-          SELECT n.id FROM nodes n
-          JOIN projects p ON n.project_id = p.id
-          WHERE p.is_demo = 1 AND p.slug != 'baja-sae-2025' AND p.slug != 'drone-demo'
-        );
-
-UPDATE node_renders SET url = ?
-      WHERE url = ?;
-
 -- ─── Migration: 20260323000009_remove_demo_renders.js ───
 DELETE FROM node_renders
       WHERE source_type = 'url'
@@ -721,42 +546,6 @@ CREATE INDEX req_derivations_parent_idx ON requirement_derivations(parent_requir
 
 CREATE INDEX req_derivations_child_idx ON requirement_derivations(child_requirement_id);
 
-DROP TABLE IF EXISTS requirement_derivations;
-
-ALTER TABLE requirements DROP COLUMN source;
-
--- ─── Migration: 20260323000011_add_project_id_to_doe_eightd.js ───
-ALTER TABLE doe_studies
-        ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE;
-
-UPDATE doe_studies s
-      JOIN nodes n ON n.id = s.node_id
-      SET s.project_id = n.project_id
-      WHERE s.project_id IS NULL
-        AND n.project_id IS NOT NULL;
-
-CREATE INDEX doe_studies_project_idx ON doe_studies(project_id);
-
-ALTER TABLE eightd_reports
-        ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE;
-
-UPDATE eightd_reports r
-      JOIN eightd_node_links l ON l.report_id = r.id
-      JOIN nodes n ON n.id = l.node_id
-      SET r.project_id = n.project_id
-      WHERE r.project_id IS NULL
-        AND n.project_id IS NOT NULL;
-
-CREATE INDEX eightd_reports_project_idx ON eightd_reports(project_id);
-
-ALTER TABLE doe_studies DROP COLUMN project_id;
-
-ALTER TABLE eightd_reports DROP COLUMN project_id;
-
-DROP INDEX doe_studies_project_idx ON doe_studies;
-
-DROP INDEX eightd_reports_project_idx ON eightd_reports;
-
 -- ─── Migration: 20260323000012_investor_contacts.js ───
 CREATE TABLE IF NOT EXISTS investor_contacts (
         id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -771,8 +560,6 @@ CREATE TABLE IF NOT EXISTS investor_contacts (
 CREATE INDEX investor_contacts_email_idx ON investor_contacts(email);
 
 CREATE INDEX investor_contacts_created_at_idx ON investor_contacts(created_at);
-
-DROP TABLE IF EXISTS investor_contacts;
 
 -- ─── Migration: 20260323000013_create_sop_tables.js ───
 CREATE TABLE IF NOT EXISTS sops (
@@ -807,23 +594,6 @@ CREATE INDEX sops_project_id_idx     ON sops(project_id);
 CREATE INDEX sop_steps_sop_id_idx    ON sop_steps(sop_id);
 
 CREATE INDEX sop_steps_order_idx     ON sop_steps(sop_id, step_order);
-
-DROP TABLE IF EXISTS sop_steps;
-
-DROP TABLE IF EXISTS sops;
-
--- ─── Migration: 20260323000014_remove_old_heavy_motion_project.js ───
-UPDATE nodes SET parent_id = NULL
-    WHERE project_id IN (
-      SELECT id FROM projects WHERE slug = 'edison-hybrid-truck'
-    );
-
-DELETE FROM nodes
-    WHERE project_id IN (
-      SELECT id FROM projects WHERE slug = 'edison-hybrid-truck'
-    );
-
-DELETE FROM projects WHERE slug = 'edison-hybrid-truck';
 
 -- ─── Migration: 20260323000015_create_analytics_tables.js ───
 CREATE TABLE IF NOT EXISTS page_views (
@@ -899,10 +669,6 @@ CREATE INDEX idx_access_requests_email ON access_requests(email);
 
 CREATE INDEX idx_university_vouchers_code ON university_vouchers(voucher_code);
 
-DROP TABLE IF EXISTS access_requests;
-
-DROP TABLE IF EXISTS university_vouchers;
-
 -- ─── Migration: 20260323000017_create_experiment_shares.js ───
 CREATE TABLE IF NOT EXISTS experiment_shares (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -933,10 +699,6 @@ CREATE TABLE IF NOT EXISTS experiment_share_activity (
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_share_activity_share (share_id)
       );
-
-DROP TABLE IF EXISTS experiment_share_activity;
-
-DROP TABLE IF EXISTS experiment_shares;
 
 -- ─── Migration: 20260323000018_create_design_cycle_tables.js ───
 CREATE TABLE IF NOT EXISTS design_projects (
@@ -992,14 +754,6 @@ CREATE TABLE IF NOT EXISTS design_ai_chats (
         INDEX idx_design_chats_project (project_id)
       );
 
-DROP TABLE IF EXISTS design_ai_chats;
-
-DROP TABLE IF EXISTS design_phase_questions;
-
-DROP TABLE IF EXISTS design_phases;
-
-DROP TABLE IF EXISTS design_projects;
-
 -- ─── Migration: 20260323000019_create_resources_tables.js ───
 CREATE TABLE IF NOT EXISTS resources (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1043,10 +797,6 @@ CREATE TABLE IF NOT EXISTS resource_checkouts (
         INDEX idx_checkouts_user (checked_out_by_user_id),
         INDEX idx_checkouts_active (returned_at)
       );
-
-DROP TABLE IF EXISTS resource_checkouts;
-
-DROP TABLE IF EXISTS resources;
 
 -- ─── Migration: 20260323000020_create_doe_experiments_tables.js ───
 CREATE TABLE IF NOT EXISTS doe_experiments (
@@ -1140,24 +890,6 @@ CREATE TABLE IF NOT EXISTS doe_analysis_results (
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_doe_ar_experiment (experiment_id)
       );
-
-DROP TABLE IF EXISTS doe_analysis_results;
-
-DROP TABLE IF EXISTS doe_run_measurements;
-
-DROP TABLE IF EXISTS doe_run_factor_levels;
-
-DROP TABLE IF EXISTS doe_runs;
-
-DROP TABLE IF EXISTS doe_experiment_responses;
-
-DROP TABLE IF EXISTS doe_experiment_factors;
-
-DROP TABLE IF EXISTS doe_responses;
-
-DROP TABLE IF EXISTS doe_factors;
-
-DROP TABLE IF EXISTS doe_experiments;
 
 -- ─── Migration: 20260323000021_expand_design_cycle_tables.js ───
 CREATE TABLE IF NOT EXISTS design_requirements (
@@ -1310,8 +1042,6 @@ CREATE TABLE IF NOT EXISTS design_reports (
         INDEX idx_drep_project (project_id)
       );
 
--- (dynamic DROP TABLE removed - not needed for fresh install)
-
 -- ─── Migration: 20260324000001_tier2_core_engineering.js ───
 CREATE TABLE IF NOT EXISTS design_phase_gates (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1424,8 +1154,6 @@ CREATE TABLE IF NOT EXISTS sop_execution_steps (
         sign_off_notes TEXT,
         INDEX idx_ses_execution (execution_id)
       );
-
--- (dynamic DROP TABLE removed - not needed for fresh install)
 
 -- ─── Migration: 20260324000002_tier3_electronics_pcb.js ───
 ALTER TABLE nodes MODIFY COLUMN type
@@ -1564,8 +1292,6 @@ CREATE TABLE IF NOT EXISTS power_consumers (
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_pc_rail (rail_id)
       );
-
--- (dynamic DROP TABLE removed - not needed for fresh install)
 
 -- ─── Migration: 20260324000003_tier4_git_firmware.js ───
 CREATE TABLE IF NOT EXISTS git_repos (
@@ -1738,8 +1464,6 @@ CREATE TABLE IF NOT EXISTS code_review_links (
         INDEX idx_crl_req (requirement_id)
       );
 
--- (dynamic DROP TABLE removed - not needed for fresh install)
-
 -- ─── Migration: 20260324000004_tier5_platform_maturity.js ───
 CREATE TABLE IF NOT EXISTS change_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1874,8 +1598,6 @@ CREATE TABLE IF NOT EXISTS webhook_subscriptions (
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_ws_project (project_id)
       );
-
--- (dynamic DROP TABLE removed - not needed for fresh install)
 
 -- ─── Record applied migrations ─────────────────────────────────────
 INSERT IGNORE INTO _migrations (name) VALUES ('create_nodes_table');

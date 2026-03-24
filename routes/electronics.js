@@ -71,7 +71,7 @@ router.put('/:nodeId/electronics', async (req, res) => {
 router.delete('/:nodeId/electronics', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    await pool.query('DELETE FROM node_electronics WHERE node_id = ?', [req.params.nodeId]);
+    await pool.query('DELETE FROM node_electronics_props WHERE node_id = ?', [req.params.nodeId]);
     res.json({ success: true, message: 'Electronics properties removed' });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });

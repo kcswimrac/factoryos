@@ -275,14 +275,9 @@ const serveReactApp = (req, res) => {
 
 reactRoutes.forEach(route => app.get(route, serveReactApp));
 
-// ── Root route — serve React landing page ────────────────────────────────────
+// ── Root route — redirect to app ──────────────────────────────────────────────
 app.get('/', (req, res) => {
-  const indexPath = path.join(reactDistPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.redirect('/projects');
-  }
+  res.redirect('/projects');
 });
 
 // ── React login (Factory-os frontend login) ──────────────────────────────────

@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import FactoryOSLanding from './FactoryOSLanding';
 import LoginPage from './LoginPage';
 import DOEPlatformHome from './DOEPlatformHome';
 import ExperimentDashboard from './ExperimentDashboard';
@@ -42,7 +41,7 @@ function App() {
       <Router>
         <Routes>
           {/* Public Routes */}
-          <Route path="/" element={<FactoryOSLanding />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
 
           {/* Shared Experiment Access (requires login) */}
