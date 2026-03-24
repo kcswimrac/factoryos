@@ -958,7 +958,7 @@ function escHtml(str) {
 
 async function goToDroneDemo() {
     try {
-        var res = await fetch('/api/demo/drone-project');
+        var res = await fetch('/api/demo/seed/drone-project');
         var data = await res.json();
         if (data.success) {
             window.location.href = '/app?project=' + data.projectId + '&tour=1';
