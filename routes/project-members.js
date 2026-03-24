@@ -22,9 +22,9 @@ async function requireAdmin(req, res, pool) {
   if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return false; }
 
   // Demo projects have no members management
-  const proj = await pool.query('SELECT is_demo FROM projects WHERE id = $1', [projectId]);
-  if (!proj.rows[0]) { res.status(404).json({ success: false, message: 'Project not found' }); return false; }
-  if (proj.rows[0].is_demo) { res.status(403).json({ success: false, message: 'Demo projects cannot have members' }); return false; }
+  const [projRows] = await pool.query('SELECT is_demo FROM projects WHERE id = ?', [projectId]);
+  if (!projRows[0]) { res.status(404).json({ success: false, message: 'Project not found' }); return false; }
+  if (projRows[0].is_demo) { res.status(403).json({ success: false, message: 'Demo projects cannot have members' }); return false; }
 
   const role = await getProjectRole(pool, projectId, userId);
   if (!role) { res.status(403).json({ success: false, message: 'You do not have access to this project' }); return false; }
@@ -39,10 +39,10 @@ router.get('/my-role', async (req, res) => {
   const userId    = req.user?.id ?? null;
 
   // Check demo
-  const proj = await pool.query('SELECT is_demo FROM projects WHERE id = $1', [projectId]);
-  if (!proj.rows[0]) return res.status(404).json({ success: false, message: 'Project not found' });
+  const [projRows] = await pool.query('SELECT is_demo FROM projects WHERE id = ?', [projectId]);
+  if (!projRows[0]) return res.status(404).json({ success: false, message: 'Project not found' });
 
-  if (proj.rows[0].is_demo) {
+  if (projRows[0].is_demo) {
     return res.json({ success: true, role: 'viewer', is_demo: true });
   }
 
@@ -66,7 +66,7 @@ router.get('/members', async (req, res) => {
   const role = await getProjectRole(pool, projectId, userId);
   if (!role) return res.status(403).json({ success: false, message: 'Access denied' });
 
-  const members = await pool.query(`
+  const [memberRows] = await pool.query(`
     SELECT
       pm.id,
       pm.user_id,
@@ -78,7 +78,7 @@ router.get('/members', async (req, res) => {
     FROM project_members pm
     JOIN users u ON u.id = pm.user_id
     LEFT JOIN users ib ON ib.id = pm.invited_by
-    WHERE pm.project_id = $1
+    WHERE pm.project_id = ?
     ORDER BY
       CASE pm.role WHEN 'admin' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END,
       pm.created_at ASC
@@ -87,18 +87,18 @@ router.get('/members', async (req, res) => {
   // Pending invites (admin only)
   let invites = [];
   if (role === 'admin') {
-    const inv = await pool.query(`
+    const [invRows] = await pool.query(`
       SELECT pi.id, pi.email, pi.role, pi.expires_at, pi.created_at,
              ib.name AS invited_by_name
       FROM project_invites pi
       LEFT JOIN users ib ON ib.id = pi.invited_by
-      WHERE pi.project_id = $1 AND pi.accepted_at IS NULL AND pi.expires_at > NOW()
+      WHERE pi.project_id = ? AND pi.accepted_at IS NULL AND pi.expires_at > NOW()
       ORDER BY pi.created_at DESC
     `, [projectId]);
-    invites = inv.rows;
+    invites = invRows;
   }
 
-  res.json({ success: true, members: members.rows, pending_invites: invites, caller_role: role });
+  res.json({ success: true, members: memberRows, pending_invites: invites, caller_role: role });
 });
 
 // ── POST /api/projects/:id/members — invite by email ─────────────────────────
@@ -115,60 +115,66 @@ router.post('/members', async (req, res) => {
   }
 
   // Check if user already exists
-  const existing = await pool.query(
-    'SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]
+  const [existingRows] = await pool.query(
+    'SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [email]
   );
 
-  if (existing.rows.length) {
-    const inviteeId = existing.rows[0].id;
+  if (existingRows.length) {
+    const inviteeId = existingRows[0].id;
 
     // Already a member?
-    const alreadyMember = await pool.query(
-      'SELECT id FROM project_members WHERE project_id = $1 AND user_id = $2',
+    const [alreadyMemberRows] = await pool.query(
+      'SELECT id FROM project_members WHERE project_id = ? AND user_id = ?',
       [projectId, inviteeId]
     );
 
-    if (alreadyMember.rows.length) {
+    if (alreadyMemberRows.length) {
       return res.status(409).json({ success: false, message: 'User is already a member of this project' });
     }
 
     // Add directly
-    const result = await pool.query(`
+    const [insertResult] = await pool.query(`
       INSERT INTO project_members (project_id, user_id, role, invited_by)
-      VALUES ($1, $2, $3, $4) RETURNING *
+      VALUES (?, ?, ?, ?)
     `, [projectId, inviteeId, role, req.user.id]);
 
-    return res.status(201).json({ success: true, member: result.rows[0], type: 'added' });
+    const [memberRows] = await pool.query('SELECT * FROM project_members WHERE id = ?', [insertResult.insertId]);
+
+    return res.status(201).json({ success: true, member: memberRows[0], type: 'added' });
   }
 
   // User doesn't exist yet — create invite token
   const token = crypto.randomBytes(32).toString('hex');
   try {
-    const inv = await pool.query(`
+    const [invResult] = await pool.query(`
       INSERT INTO project_invites (project_id, email, role, token, invited_by)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (project_id, email) DO UPDATE
-        SET role = EXCLUDED.role,
-            token = EXCLUDED.token,
-            invited_by = EXCLUDED.invited_by,
-            expires_at = NOW() + INTERVAL '7 days',
-            accepted_at = NULL
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        role = VALUES(role),
+        token = VALUES(token),
+        invited_by = VALUES(invited_by),
+        expires_at = DATE_ADD(NOW(), INTERVAL 7 DAY),
+        accepted_at = NULL
     `, [projectId, email.toLowerCase(), role, token, req.user.id]);
 
+    const [invRows] = await pool.query(
+      'SELECT * FROM project_invites WHERE project_id = ? AND email = ?',
+      [projectId, email.toLowerCase()]
+    );
+
     // Get project name for the response
-    const proj = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
+    const [projRows] = await pool.query('SELECT name FROM projects WHERE id = ?', [projectId]);
 
     res.status(201).json({
       success: true,
       type: 'invited',
-      invite: inv.rows[0],
-      project_name: proj.rows[0]?.name,
+      invite: invRows[0],
+      project_name: projRows[0]?.name,
       // In production you'd email this token; for now return it
       invite_url: `/accept-invite?token=${token}`
     });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Invite already sent' });
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: 'Invite already sent' });
     throw err;
   }
 });
@@ -188,15 +194,15 @@ router.put('/members/:userId', async (req, res) => {
 
   // Can't demote the last admin
   if (role !== 'admin') {
-    const adminCount = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM project_members WHERE project_id = $1 AND role = 'admin'`,
+    const [adminCountRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM project_members WHERE project_id = ? AND role = 'admin'`,
       [projectId]
     );
-    const isCurrentAdmin = await pool.query(
-      `SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`,
+    const [isCurrentAdminRows] = await pool.query(
+      `SELECT role FROM project_members WHERE project_id = ? AND user_id = ?`,
       [projectId, targetId]
     );
-    if (isCurrentAdmin.rows[0]?.role === 'admin' && adminCount.rows[0].count <= 1) {
+    if (isCurrentAdminRows[0]?.role === 'admin' && adminCountRows[0].count <= 1) {
       return res.status(409).json({
         success: false,
         message: 'Cannot demote the last admin. Promote another member first.'
@@ -204,18 +210,22 @@ router.put('/members/:userId', async (req, res) => {
     }
   }
 
-  const result = await pool.query(`
+  await pool.query(`
     UPDATE project_members
-    SET role = $1, updated_at = NOW()
-    WHERE project_id = $2 AND user_id = $3
-    RETURNING *
+    SET role = ?, updated_at = NOW()
+    WHERE project_id = ? AND user_id = ?
   `, [role, projectId, targetId]);
 
-  if (!result.rows.length) {
+  const [rows] = await pool.query(
+    'SELECT * FROM project_members WHERE project_id = ? AND user_id = ?',
+    [projectId, targetId]
+  );
+
+  if (!rows.length) {
     return res.status(404).json({ success: false, message: 'Member not found' });
   }
 
-  res.json({ success: true, member: result.rows[0] });
+  res.json({ success: true, member: rows[0] });
 });
 
 // ── DELETE /api/projects/:id/members/:userId — remove member ─────────────────
@@ -237,20 +247,20 @@ router.delete('/members/:userId', async (req, res) => {
   }
 
   // Check last admin guard
-  const targetMember = await pool.query(
-    'SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2',
+  const [targetMemberRows] = await pool.query(
+    'SELECT role FROM project_members WHERE project_id = ? AND user_id = ?',
     [projectId, targetId]
   );
-  if (!targetMember.rows.length) {
+  if (!targetMemberRows.length) {
     return res.status(404).json({ success: false, message: 'Member not found' });
   }
 
-  if (targetMember.rows[0].role === 'admin') {
-    const adminCount = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM project_members WHERE project_id = $1 AND role = 'admin'`,
+  if (targetMemberRows[0].role === 'admin') {
+    const [adminCountRows] = await pool.query(
+      `SELECT COUNT(*) AS count FROM project_members WHERE project_id = ? AND role = 'admin'`,
       [projectId]
     );
-    if (adminCount.rows[0].count <= 1) {
+    if (adminCountRows[0].count <= 1) {
       return res.status(409).json({
         success: false,
         message: 'Cannot remove the last admin. Transfer ownership first.'
@@ -259,7 +269,7 @@ router.delete('/members/:userId', async (req, res) => {
   }
 
   await pool.query(
-    'DELETE FROM project_members WHERE project_id = $1 AND user_id = $2',
+    'DELETE FROM project_members WHERE project_id = ? AND user_id = ?',
     [projectId, targetId]
   );
 
@@ -274,7 +284,7 @@ router.delete('/invites/:inviteId', async (req, res) => {
   if (!await requireAdmin(req, res, pool)) return;
 
   await pool.query(
-    'DELETE FROM project_invites WHERE id = $1 AND project_id = $2',
+    'DELETE FROM project_invites WHERE id = ? AND project_id = ?',
     [req.params.inviteId, projectId]
   );
   res.json({ success: true, message: 'Invite cancelled' });

@@ -9,35 +9,40 @@
  */
 module.exports = {
   name: 'create_auth_tables',
-  up: async (client) => {
+  up: async (conn) => {
     // Add reset token fields to users
-    await client.query(`
+    await conn.query(`
       ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255),
-        ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMPTZ
-    `);
+        ADD COLUMN reset_token VARCHAR(255)
+    `).catch(() => {});
+    await conn.query(`
+      ALTER TABLE users
+        ADD COLUMN reset_token_expires TIMESTAMP NULL
+    `).catch(() => {});
 
     // Add created_by to teams (who owns this team)
-    await client.query(`
+    await conn.query(`
       ALTER TABLE teams
-        ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
-    `);
+        ADD COLUMN created_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    `).catch(() => {});
 
     // Create team_members junction table
-    await client.query(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS team_members (
-        id SERIAL PRIMARY KEY,
+        id INT AUTO_INCREMENT PRIMARY KEY,
         team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         role VARCHAR(20) NOT NULL DEFAULT 'member',
-        created_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(team_id, user_id)
       )
     `);
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
-      CREATE INDEX IF NOT EXISTS idx_team_members_team_id ON team_members(team_id);
-    `);
+    await conn.query(`
+      CREATE INDEX idx_team_members_user_id ON team_members(user_id)
+    `).catch(() => {});
+    await conn.query(`
+      CREATE INDEX idx_team_members_team_id ON team_members(team_id)
+    `).catch(() => {});
   }
 };

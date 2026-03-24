@@ -53,25 +53,25 @@ function nextRevLabel(existing) {
  * Returns { phaseSnapshot, artifactSnapshot }
  */
 async function snapshotNode(pool, nodeId) {
-  const phases = await pool.query(
-    'SELECT phase, phase_order, status, started_at, completed_at, notes FROM node_phases WHERE node_id = $1 ORDER BY phase_order ASC',
+  const [phases] = await pool.query(
+    'SELECT phase, phase_order, status, started_at, completed_at, notes FROM node_phases WHERE node_id = ? ORDER BY phase_order ASC',
     [nodeId]
   );
 
-  const artifacts = await pool.query(
-    'SELECT id, phase, artifact_type, artifact_key, data, created_at FROM phase_artifacts WHERE node_id = $1 ORDER BY phase, created_at ASC',
+  const [artifacts] = await pool.query(
+    'SELECT id, phase, artifact_type, artifact_key, data, created_at FROM phase_artifacts WHERE node_id = ? ORDER BY phase, created_at ASC',
     [nodeId]
   );
 
   // Group artifacts by phase
   const artifactsByPhase = {};
-  artifacts.rows.forEach(a => {
+  artifacts.forEach(a => {
     if (!artifactsByPhase[a.phase]) artifactsByPhase[a.phase] = [];
     artifactsByPhase[a.phase].push(a);
   });
 
   return {
-    phaseSnapshot: phases.rows,
+    phaseSnapshot: phases,
     artifactSnapshot: artifactsByPhase
   };
 }
@@ -86,19 +86,18 @@ async function snapshotNode(pool, nodeId) {
  * @returns {object} created revision row
  */
 async function createRevision(pool, nodeId, triggeredByPhase, reason) {
-  const existing = await pool.query(
-    'SELECT revision_label FROM node_phase_revisions WHERE node_id = $1 ORDER BY id ASC',
+  const [existing] = await pool.query(
+    'SELECT revision_label FROM node_phase_revisions WHERE node_id = ? ORDER BY id ASC',
     [nodeId]
   );
 
-  const label = nextRevLabel(existing.rows);
+  const label = nextRevLabel(existing);
   const { phaseSnapshot, artifactSnapshot } = await snapshotNode(pool, nodeId);
 
-  const result = await pool.query(`
+  const [result] = await pool.query(`
     INSERT INTO node_phase_revisions
       (node_id, revision_label, triggered_by_phase, regression_reason, phase_snapshot, artifact_snapshot)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING *
+    VALUES (?, ?, ?, ?, ?, ?)
   `, [
     nodeId,
     label,
@@ -108,7 +107,8 @@ async function createRevision(pool, nodeId, triggeredByPhase, reason) {
     JSON.stringify(artifactSnapshot)
   ]);
 
-  return result.rows[0];
+  const [rows] = await pool.query('SELECT * FROM node_phase_revisions WHERE id = ?', [result.insertId]);
+  return rows[0];
 }
 
 // ── GET /api/nodes/:id/phase-revisions ───────────────────────────────────────
@@ -119,17 +119,17 @@ router.get('/', async (req, res) => {
 
   if (!nodeId) return res.status(400).json({ success: false, message: 'Invalid node id' });
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [nodeId]);
-  if (!nodeResult.rows.length) return res.status(404).json({ success: false, message: 'Node not found' });
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [nodeId]);
+  if (!nodeRows.length) return res.status(404).json({ success: false, message: 'Node not found' });
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT id, node_id, revision_label, triggered_by_phase, regression_reason, created_at
     FROM node_phase_revisions
-    WHERE node_id = $1
+    WHERE node_id = ?
     ORDER BY id ASC
   `, [nodeId]);
 
-  res.json({ success: true, revisions: result.rows });
+  res.json({ success: true, revisions: rows });
 });
 
 // ── GET /api/nodes/:id/phase-revisions/:revId ─────────────────────────────────
@@ -141,14 +141,14 @@ router.get('/:revId', async (req, res) => {
 
   if (!nodeId || !revId) return res.status(400).json({ success: false, message: 'Invalid id' });
 
-  const result = await pool.query(
-    'SELECT * FROM node_phase_revisions WHERE id = $1 AND node_id = $2',
+  const [rows] = await pool.query(
+    'SELECT * FROM node_phase_revisions WHERE id = ? AND node_id = ?',
     [revId, nodeId]
   );
 
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Revision not found' });
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Revision not found' });
 
-  res.json({ success: true, revision: result.rows[0] });
+  res.json({ success: true, revision: rows[0] });
 });
 
 // ── POST /api/nodes/:id/phase-revisions ───────────────────────────────────────
@@ -161,8 +161,8 @@ router.post('/', requireRole('editor'), async (req, res) => {
 
   if (!nodeId) return res.status(400).json({ success: false, message: 'Invalid node id' });
 
-  const nodeResult = await pool.query('SELECT id FROM nodes WHERE id = $1', [nodeId]);
-  if (!nodeResult.rows.length) return res.status(404).json({ success: false, message: 'Node not found' });
+  const [nodeRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [nodeId]);
+  if (!nodeRows.length) return res.status(404).json({ success: false, message: 'Node not found' });
 
   const revision = await createRevision(pool, nodeId, triggered_by_phase, regression_reason);
   res.status(201).json({ success: true, revision });
@@ -175,13 +175,16 @@ router.delete('/:revId', requireRole('admin'), async (req, res) => {
   const nodeId = parseInt(req.params.id);
   const revId  = parseInt(req.params.revId);
 
-  const result = await pool.query(
-    'DELETE FROM node_phase_revisions WHERE id = $1 AND node_id = $2 RETURNING id, revision_label',
+  // Fetch before deleting since MySQL doesn't support RETURNING
+  const [rows] = await pool.query(
+    'SELECT id, revision_label FROM node_phase_revisions WHERE id = ? AND node_id = ?',
     [revId, nodeId]
   );
 
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Revision not found' });
-  res.json({ success: true, deleted: result.rows[0] });
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Revision not found' });
+
+  await pool.query('DELETE FROM node_phase_revisions WHERE id = ? AND node_id = ?', [revId, nodeId]);
+  res.json({ success: true, deleted: rows[0] });
 });
 
 module.exports = router;

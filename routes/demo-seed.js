@@ -12,21 +12,22 @@
 
 const express = require('express');
 const router = express.Router();
+const { trackEvent } = require('../middleware/analytics');
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 async function createNode(pool, { name, part_number, type, description, parent_id, project_id }) {
   try {
-    const r = await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO nodes (name, part_number, type, description, parent_id, project_id)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+       VALUES (?,?,?,?,?,?)`,
       [name, part_number, type, description || null, parent_id || null, project_id]
     );
-    return r.rows[0].id;
+    return result.insertId;
   } catch(e) {
-    if (e.code === '23505') {
-      const r2 = await pool.query('SELECT id FROM nodes WHERE part_number=$1', [part_number]);
-      return r2.rows[0]?.id;
+    if (e.code === 'ER_DUP_ENTRY') {
+      const [rows] = await pool.query('SELECT id FROM nodes WHERE part_number=?', [part_number]);
+      return rows[0]?.id;
     }
     throw e;
   }
@@ -36,11 +37,11 @@ async function addRequirement(pool, nodeId, { req_id, title, description, verifi
   try {
     await pool.query(
       `INSERT INTO requirements (node_id, req_id, title, description, verification_method, priority, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       VALUES (?,?,?,?,?,?,?)`,
       [nodeId, req_id, title, description||null, verification_method||'test', priority||'shall', status||'open']
     );
   } catch(e) {
-    if (e.code === '23505') return;
+    if (e.code === 'ER_DUP_ENTRY') return;
     throw e;
   }
 }
@@ -55,12 +56,11 @@ async function initPhases(pool, nodeId) {
     { key:'testing_validation', order:6 },
     { key:'correlation', order:7 }
   ];
-  await pool.query("UPDATE nodes SET phase_mode='own' WHERE id=$1", [nodeId]);
+  await pool.query("UPDATE nodes SET phase_mode='own' WHERE id=?", [nodeId]);
   for (const ph of PHASES) {
     try {
       await pool.query(
-        `INSERT INTO node_phases (node_id, phase, phase_order, status) VALUES ($1,$2,$3,'not_started')
-         ON CONFLICT (node_id, phase) DO NOTHING`,
+        `INSERT IGNORE INTO node_phases (node_id, phase, phase_order, status) VALUES (?,?,?,'not_started')`,
         [nodeId, ph.key, ph.order]
       );
     } catch(e) { /* ignore */ }
@@ -69,7 +69,7 @@ async function initPhases(pool, nodeId) {
 
 async function setPhaseStatus(pool, nodeId, phaseKey, status) {
   await pool.query(
-    `UPDATE node_phases SET status=$1, updated_at=NOW() WHERE node_id=$2 AND phase=$3`,
+    `UPDATE node_phases SET status=?, updated_at=NOW() WHERE node_id=? AND phase=?`,
     [status, nodeId, phaseKey]
   );
 }
@@ -79,14 +79,14 @@ async function addArtifact(pool, nodeId, phase, type, key, data) {
     if (key) {
       await pool.query(
         `INSERT INTO phase_artifacts (node_id, phase, artifact_type, artifact_key, data)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (node_id, phase, artifact_key) DO UPDATE SET data=$5, updated_at=NOW()`,
-        [nodeId, phase, type, key, data]
+         VALUES (?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE data=VALUES(data), updated_at=NOW()`,
+        [nodeId, phase, type, key, JSON.stringify(data)]
       );
     } else {
       await pool.query(
-        `INSERT INTO phase_artifacts (node_id, phase, artifact_type, data) VALUES ($1,$2,$3,$4)`,
-        [nodeId, phase, type, data]
+        `INSERT INTO phase_artifacts (node_id, phase, artifact_type, data) VALUES (?,?,?,?)`,
+        [nodeId, phase, type, JSON.stringify(data)]
       );
     }
   } catch(e) { /* ignore */ }
@@ -96,32 +96,32 @@ async function addArtifact(pool, nodeId, phase, type, key, data) {
 async function createDoeStudy(pool, nodeId, title, objective, factors, responses, runs) {
   try {
     // Idempotent — return existing study if already seeded for this node+title
-    const existing = await pool.query(
-      'SELECT id FROM doe_studies WHERE node_id=$1 AND title=$2 LIMIT 1',
+    const [existingRows] = await pool.query(
+      'SELECT id FROM doe_studies WHERE node_id=? AND title=? LIMIT 1',
       [nodeId, title]
     );
-    if (existing.rows.length > 0) return existing.rows[0].id;
+    if (existingRows.length > 0) return existingRows[0].id;
 
-    const sr = await pool.query(
-      `INSERT INTO doe_studies (title, objective, node_id, status) VALUES ($1,$2,$3,'active') RETURNING id`,
+    const [sr] = await pool.query(
+      `INSERT INTO doe_studies (title, objective, node_id, status) VALUES (?,?,?,'active')`,
       [title, objective, nodeId]
     );
-    const studyId = sr.rows[0].id;
+    const studyId = sr.insertId;
     const factorIds = [];
     for (let i = 0; i < factors.length; i++) {
-      const fr = await pool.query(
-        `INSERT INTO doe_factors (study_id, name, unit, levels, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      const [fr] = await pool.query(
+        `INSERT INTO doe_factors (study_id, name, unit, levels, sort_order) VALUES (?,?,?,?,?)`,
         [studyId, factors[i].name, factors[i].unit||null, JSON.stringify(factors[i].levels||[]), i]
       );
-      factorIds.push(fr.rows[0].id);
+      factorIds.push(fr.insertId);
     }
     const responseIds = [];
     for (let i = 0; i < responses.length; i++) {
-      const rr = await pool.query(
-        `INSERT INTO doe_responses (study_id, name, unit, target, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      const [rr] = await pool.query(
+        `INSERT INTO doe_responses (study_id, name, unit, target, sort_order) VALUES (?,?,?,?,?)`,
         [studyId, responses[i].name, responses[i].unit||null, responses[i].target||'minimize', i]
       );
-      responseIds.push(rr.rows[0].id);
+      responseIds.push(rr.insertId);
     }
     for (let i = 0; i < runs.length; i++) {
       const run = runs[i];
@@ -129,15 +129,15 @@ async function createDoeStudy(pool, nodeId, title, objective, factors, responses
       for (let j = 0; j < factorIds.length; j++) {
         if (run.factors && run.factors[j] !== undefined) settings[String(factorIds[j])] = run.factors[j];
       }
-      const rr = await pool.query(
-        `INSERT INTO doe_runs (study_id, run_number, factor_settings, notes) VALUES ($1,$2,$3,$4) RETURNING id`,
+      const [rr] = await pool.query(
+        `INSERT INTO doe_runs (study_id, run_number, factor_settings, notes) VALUES (?,?,?,?)`,
         [studyId, i+1, JSON.stringify(settings), run.notes||null]
       );
-      const runId = rr.rows[0].id;
+      const runId = rr.insertId;
       for (let j = 0; j < responseIds.length; j++) {
         if (run.results && run.results[j] !== undefined && run.results[j] !== null) {
           await pool.query(
-            `INSERT INTO doe_run_results (run_id, response_id, value) VALUES ($1,$2,$3)`,
+            `INSERT INTO doe_run_results (run_id, response_id, value) VALUES (?,?,?)`,
             [runId, responseIds[j], run.results[j]]
           );
         }
@@ -174,14 +174,18 @@ async function seedTeams(pool) {
   const ids = {};
   for (const t of teams) {
     try {
-      const r = await pool.query(
+      const [result] = await pool.query(
         `INSERT INTO teams (name, slug, description, is_demo)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (slug) DO UPDATE SET name=$1, description=$3
-         RETURNING id`,
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description)`,
         [t.name, t.slug, t.description, t.is_demo]
       );
-      ids[t.slug] = r.rows[0].id;
+      if (result.insertId) {
+        ids[t.slug] = result.insertId;
+      } else {
+        const [rows] = await pool.query('SELECT id FROM teams WHERE slug=?', [t.slug]);
+        ids[t.slug] = rows[0].id;
+      }
     } catch(e) {
       throw e;
     }
@@ -194,19 +198,18 @@ async function seedTeams(pool) {
 async function seedDroneProject(pool, teamId) {
   let projId;
   try {
-    const pr = await pool.query(
+    const [pr] = await pool.query(
       `INSERT INTO projects (name, description, slug, is_demo, team_id)
-       VALUES ('Drone — Guided Demo', 'Autonomous quadcopter demonstrating the Factory-OS engineering lifecycle.', 'drone-demo', true, $1)
-       RETURNING id`,
+       VALUES ('Drone — Guided Demo', 'Autonomous quadcopter demonstrating the Factory-OS engineering lifecycle.', 'drone-demo', true, ?)`,
       [teamId || null]
     );
-    projId = pr.rows[0].id;
+    projId = pr.insertId;
   } catch(e) {
-    if (e.code === '23505') {
-      const r = await pool.query("SELECT id FROM projects WHERE slug='drone-demo'");
-      projId = r.rows[0].id;
+    if (e.code === 'ER_DUP_ENTRY') {
+      const [rows] = await pool.query("SELECT id FROM projects WHERE slug='drone-demo'");
+      projId = rows[0].id;
       // Update team_id if needed
-      if (teamId) await pool.query('UPDATE projects SET team_id=$1 WHERE id=$2', [teamId, projId]);
+      if (teamId) await pool.query('UPDATE projects SET team_id=? WHERE id=?', [teamId, projId]);
     } else throw e;
   }
 
@@ -355,19 +358,18 @@ async function seedDroneProject(pool, teamId) {
 async function seedBajaProject(pool, teamId) {
   let projId;
   try {
-    const pr = await pool.query(
+    const [pr] = await pool.query(
       `INSERT INTO projects (name, description, slug, is_demo, team_id)
-       VALUES ('Baja SAE 2025', 'Formula SAE Baja off-road vehicle — 9 subsystems, 321 parts, full engineering lifecycle.', 'baja-sae-2025', true, $1)
-       RETURNING id`,
+       VALUES ('Baja SAE 2025', 'Formula SAE Baja off-road vehicle — 9 subsystems, 321 parts, full engineering lifecycle.', 'baja-sae-2025', true, ?)`,
       [teamId || null]
     );
-    projId = pr.rows[0].id;
+    projId = pr.insertId;
   } catch(e) {
-    if (e.code === '23505') {
-      const r = await pool.query("SELECT id FROM projects WHERE slug='baja-sae-2025'");
-      projId = r.rows[0].id;
+    if (e.code === 'ER_DUP_ENTRY') {
+      const [rows] = await pool.query("SELECT id FROM projects WHERE slug='baja-sae-2025'");
+      projId = rows[0].id;
       // Update team_id if needed
-      if (teamId) await pool.query('UPDATE projects SET team_id=$1 WHERE id=$2', [teamId, projId]);
+      if (teamId) await pool.query('UPDATE projects SET team_id=? WHERE id=?', [teamId, projId]);
     } else throw e;
   }
 
@@ -783,28 +785,27 @@ async function seedBajaProject(pool, teamId) {
 async function seedHeavyMotionProject(pool, teamId) {
   // Clean up the old "Edison Hybrid Transit Truck" project (previous slug) if it exists.
   // The slug changed when the seed was updated; without this cleanup, Load Demo creates a duplicate.
-  const oldProject = await pool.query("SELECT id FROM projects WHERE slug='edison-hybrid-truck'");
-  if (oldProject.rows.length > 0) {
-    const oldId = oldProject.rows[0].id;
-    await pool.query('UPDATE nodes SET parent_id = NULL WHERE project_id = $1', [oldId]);
-    await pool.query('DELETE FROM nodes WHERE project_id = $1', [oldId]);
-    await pool.query('DELETE FROM projects WHERE id = $1', [oldId]);
+  const [oldProjectRows] = await pool.query("SELECT id FROM projects WHERE slug='edison-hybrid-truck'");
+  if (oldProjectRows.length > 0) {
+    const oldId = oldProjectRows[0].id;
+    await pool.query('UPDATE nodes SET parent_id = NULL WHERE project_id = ?', [oldId]);
+    await pool.query('DELETE FROM nodes WHERE project_id = ?', [oldId]);
+    await pool.query('DELETE FROM projects WHERE id = ?', [oldId]);
   }
 
   let projId;
   try {
-    const pr = await pool.query(
+    const [pr] = await pool.query(
       `INSERT INTO projects (name, description, slug, is_demo, team_id)
-       VALUES ('HM-600 Hybrid Truck', 'Class 8 diesel-electric hybrid transit truck — 8 subsystems, ~130 parts, full HV powertrain engineering lifecycle.', 'hm-600-hybrid-truck', true, $1)
-       RETURNING id`,
+       VALUES ('HM-600 Hybrid Truck', 'Class 8 diesel-electric hybrid transit truck — 8 subsystems, ~130 parts, full HV powertrain engineering lifecycle.', 'hm-600-hybrid-truck', true, ?)`,
       [teamId || null]
     );
-    projId = pr.rows[0].id;
+    projId = pr.insertId;
   } catch(e) {
-    if (e.code === '23505') {
-      const r = await pool.query("SELECT id FROM projects WHERE slug='hm-600-hybrid-truck'");
-      projId = r.rows[0].id;
-      if (teamId) await pool.query('UPDATE projects SET team_id=$1 WHERE id=$2', [teamId, projId]);
+    if (e.code === 'ER_DUP_ENTRY') {
+      const [rows] = await pool.query("SELECT id FROM projects WHERE slug='hm-600-hybrid-truck'");
+      projId = rows[0].id;
+      if (teamId) await pool.query('UPDATE projects SET team_id=? WHERE id=?', [teamId, projId]);
     } else throw e;
   }
 
@@ -1152,62 +1153,56 @@ async function seedHeavyMotionProject(pool, teamId) {
 // ─── DISCOVERY WORKSPACE HELPERS ─────────────────────────────────────────────
 
 async function createDiscoveryObject(pool, { project_id, title, description, type, maturity, confidence, tags, functional_cluster }) {
-  const r = await pool.query(
-    `INSERT INTO discovery_objects (project_id, title, description, type, maturity, confidence, tags, functional_cluster)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-     ON CONFLICT DO NOTHING
-     RETURNING id`,
+  const [result] = await pool.query(
+    `INSERT IGNORE INTO discovery_objects (project_id, title, description, type, maturity, confidence, tags, functional_cluster)
+     VALUES (?,?,?,?,?,?,?,?)`,
     [project_id, title, description || null, type || 'concept', maturity || 'raw', confidence || 'low',
      JSON.stringify(tags || []), functional_cluster || null]
   );
-  if (r.rows.length === 0) {
-    // Row already exists — fetch it
-    const existing = await pool.query(
-      `SELECT id FROM discovery_objects WHERE project_id=$1 AND title=$2 LIMIT 1`,
-      [project_id, title]
-    );
-    return existing.rows[0]?.id;
+  if (result.insertId) {
+    return result.insertId;
   }
-  return r.rows[0].id;
+  // Row already exists — fetch it
+  const [rows] = await pool.query(
+    `SELECT id FROM discovery_objects WHERE project_id=? AND title=? LIMIT 1`,
+    [project_id, title]
+  );
+  return rows[0]?.id;
 }
 
 async function createDiscoveryRelationship(pool, source_id, target_id, relationship_type, notes) {
   if (!source_id || !target_id) return;
   try {
     await pool.query(
-      `INSERT INTO discovery_relationships (source_object_id, target_object_id, relationship_type, notes)
-       VALUES ($1,$2,$3,$4)
-       ON CONFLICT (source_object_id, target_object_id, relationship_type) DO NOTHING`,
+      `INSERT IGNORE INTO discovery_relationships (source_object_id, target_object_id, relationship_type, notes)
+       VALUES (?,?,?,?)`,
       [source_id, target_id, relationship_type, notes || null]
     );
   } catch(e) { /* ignore */ }
 }
 
 async function createDiscoveryArchitecture(pool, { project_id, name, description, pros, cons, risks, status }) {
-  const r = await pool.query(
-    `INSERT INTO discovery_architectures (project_id, name, description, pros, cons, risks, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT DO NOTHING
-     RETURNING id`,
+  const [result] = await pool.query(
+    `INSERT IGNORE INTO discovery_architectures (project_id, name, description, pros, cons, risks, status)
+     VALUES (?,?,?,?,?,?,?)`,
     [project_id, name, description || null, pros || null, cons || null, risks || null, status || 'active']
   );
-  if (r.rows.length === 0) {
-    const existing = await pool.query(
-      `SELECT id FROM discovery_architectures WHERE project_id=$1 AND name=$2 LIMIT 1`,
-      [project_id, name]
-    );
-    return existing.rows[0]?.id;
+  if (result.insertId) {
+    return result.insertId;
   }
-  return r.rows[0].id;
+  const [rows] = await pool.query(
+    `SELECT id FROM discovery_architectures WHERE project_id=? AND name=? LIMIT 1`,
+    [project_id, name]
+  );
+  return rows[0]?.id;
 }
 
 async function linkObjectToArchitecture(pool, architecture_id, object_id) {
   if (!architecture_id || !object_id) return;
   try {
     await pool.query(
-      `INSERT INTO discovery_architecture_objects (architecture_id, object_id)
-       VALUES ($1,$2)
-       ON CONFLICT (architecture_id, object_id) DO NOTHING`,
+      `INSERT IGNORE INTO discovery_architecture_objects (architecture_id, object_id)
+       VALUES (?,?)`,
       [architecture_id, object_id]
     );
   } catch(e) { /* ignore */ }
@@ -1762,6 +1757,13 @@ router.post('/', async (req, res) => {
   }
 
   const ok = results.errors.length === 0;
+
+  // Track demo engagement
+  trackEvent(req, 'demo_started', {
+    projects_seeded: [results.drone && 'drone', results.baja && 'baja', results.heavy_motion && 'heavy_motion'].filter(Boolean),
+    had_errors: !ok,
+  });
+
   res.status(ok ? 200 : 207).json({
     success: ok,
     message: ok ? 'Demo data seeded successfully' : 'Seeded with errors',
@@ -1776,23 +1778,23 @@ router.post('/', async (req, res) => {
 router.delete('/', async (req, res) => {
   const pool = req.app.locals.pool;
   // Remove all DOE studies linked to demo nodes first
-  const projects = await pool.query("SELECT id FROM projects WHERE is_demo=true");
-  for (const p of projects.rows) {
+  const [projects] = await pool.query("SELECT id FROM projects WHERE is_demo=true");
+  for (const p of projects) {
     // 8D reports linked to nodes in this project
     await pool.query(
       `DELETE FROM eightd_reports WHERE id IN (
         SELECT DISTINCT report_id FROM eightd_node_links
-        WHERE node_id IN (SELECT id FROM nodes WHERE project_id=$1)
+        WHERE node_id IN (SELECT id FROM nodes WHERE project_id=?)
       )`,
       [p.id]
     );
     // DOE studies linked to nodes in this project
     await pool.query(
-      `DELETE FROM doe_studies WHERE node_id IN (SELECT id FROM nodes WHERE project_id=$1)`,
+      `DELETE FROM doe_studies WHERE node_id IN (SELECT id FROM nodes WHERE project_id=?)`,
       [p.id]
     );
-    await pool.query('DELETE FROM nodes WHERE project_id=$1', [p.id]);
-    await pool.query('DELETE FROM projects WHERE id=$1', [p.id]);
+    await pool.query('DELETE FROM nodes WHERE project_id=?', [p.id]);
+    await pool.query('DELETE FROM projects WHERE id=?', [p.id]);
   }
   // Remove any stray test/placeholder 8D reports with no node links
   await pool.query(`DELETE FROM eightd_reports WHERE LOWER(TRIM(title)) = 'test'`);
@@ -1805,11 +1807,11 @@ router.delete('/', async (req, res) => {
 router.get('/drone-project', async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const r = await pool.query("SELECT id FROM projects WHERE slug='drone-demo' LIMIT 1");
-    if (r.rows.length === 0) {
+    const [rows] = await pool.query("SELECT id FROM projects WHERE slug='drone-demo' LIMIT 1");
+    if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Drone demo project not found' });
     }
-    res.json({ success: true, projectId: r.rows[0].id });
+    res.json({ success: true, projectId: rows[0].id });
   } catch(e) {
     res.status(500).json({ success: false, message: e.message });
   }

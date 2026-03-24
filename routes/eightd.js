@@ -6,8 +6,8 @@ const { getProjectRole, getProjectForNode } = require('../middleware/rbac');
 
 async function assertEditorRole(pool, res, projectId, userId) {
   if (!projectId) return true;
-  const proj = await pool.query('SELECT is_demo FROM projects WHERE id = $1', [projectId]);
-  if (proj.rows[0]?.is_demo) {
+  const [proj] = await pool.query('SELECT is_demo FROM projects WHERE id = ?', [projectId]);
+  if (proj[0]?.is_demo) {
     res.status(403).json({ success: false, message: 'Demo projects are read-only' });
     return false;
   }
@@ -25,13 +25,13 @@ async function assertEditorRole(pool, res, projectId, userId) {
 
 // Get project_id from an 8D report (via its first linked node)
 async function getProjectForReport(pool, reportId) {
-  const r = await pool.query(`
+  const [r] = await pool.query(`
     SELECT n.project_id FROM eightd_node_links l
     JOIN nodes n ON n.id = l.node_id
-    WHERE l.report_id = $1 AND n.project_id IS NOT NULL
+    WHERE l.report_id = ? AND n.project_id IS NOT NULL
     LIMIT 1
   `, [reportId]);
-  return r.rows[0]?.project_id ? Number(r.rows[0].project_id) : null;
+  return r[0]?.project_id ? Number(r[0].project_id) : null;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -75,18 +75,18 @@ router.get('/', async (req, res) => {
   try {
     let query = `
       SELECT r.id, r.title, r.status, r.disciplines, r.created_at, r.updated_at,
-             COUNT(l.node_id)::int AS linked_nodes
+             COUNT(l.node_id) AS linked_nodes
       FROM   eightd_reports r
       LEFT JOIN eightd_node_links l ON l.report_id = r.id
     `;
     const params = [];
     if (project_id) {
-      query += ` WHERE r.project_id = $${params.length + 1}`;
+      query += ` WHERE r.project_id = ?`;
       params.push(parseInt(project_id));
     }
     query += ' GROUP BY r.id ORDER BY r.updated_at DESC';
-    const result = await pool.query(query, params);
-    res.json({ success: true, reports: result.rows });
+    const [rows] = await pool.query(query, params);
+    res.json({ success: true, reports: rows });
   } catch (err) {
     console.error('[8D] list error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -101,14 +101,14 @@ router.get('/node/:nodeId', async (req, res) => {
     const nodeId = parseInt(req.params.nodeId);
     if (!nodeId) return res.status(400).json({ success: false, message: 'Invalid nodeId' });
 
-    const result = await pool.query(`
+    const [rows] = await pool.query(`
       SELECT r.id, r.title, r.status, r.disciplines, r.created_at, r.updated_at
       FROM   eightd_reports r
       JOIN   eightd_node_links l ON l.report_id = r.id
-      WHERE  l.node_id = $1
+      WHERE  l.node_id = ?
       ORDER BY r.updated_at DESC
     `, [nodeId]);
-    res.json({ success: true, reports: result.rows });
+    res.json({ success: true, reports: rows });
   } catch (err) {
     console.error('[8D] list-for-node error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -123,20 +123,20 @@ router.get('/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     if (!id) return res.status(400).json({ success: false, message: 'Invalid id' });
 
-    const rr = await pool.query('SELECT * FROM eightd_reports WHERE id=$1', [id]);
-    if (!rr.rows.length) return res.status(404).json({ success: false, message: 'Report not found' });
+    const [rr] = await pool.query('SELECT * FROM eightd_reports WHERE id=?', [id]);
+    if (!rr.length) return res.status(404).json({ success: false, message: 'Report not found' });
 
-    const report = rr.rows[0];
+    const report = rr[0];
     report.disciplines = mergedDisciplines(report.disciplines);
 
-    const ln = await pool.query(`
+    const [ln] = await pool.query(`
       SELECT n.id, n.name, n.part_number, n.type
       FROM   nodes n
       JOIN   eightd_node_links l ON l.node_id = n.id
-      WHERE  l.report_id = $1
+      WHERE  l.report_id = ?
       ORDER  BY n.name
     `, [id]);
-    report.linked_nodes = ln.rows;
+    report.linked_nodes = ln;
 
     res.json({ success: true, report });
   } catch (err) {
@@ -162,28 +162,30 @@ router.post('/', async (req, res) => {
     // Resolve project_id: use provided value, or derive from linked node
     let resolvedProjectId = project_id ? parseInt(project_id) : null;
     if (!resolvedProjectId && node_id) {
-      const nodeRes = await pool.query('SELECT project_id FROM nodes WHERE id = $1', [parseInt(node_id)]);
-      resolvedProjectId = nodeRes.rows[0]?.project_id || null;
+      const [nodeRes] = await pool.query('SELECT project_id FROM nodes WHERE id = ?', [parseInt(node_id)]);
+      resolvedProjectId = nodeRes[0]?.project_id || null;
     }
 
     const disciplines = defaultDisciplines();
-    const rr = await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO eightd_reports (title, status, disciplines, project_id, created_at, updated_at)
-       VALUES ($1, 'open', $2, $3, NOW(), NOW()) RETURNING *`,
+       VALUES (?, 'open', ?, ?, NOW(), NOW())`,
       [title.trim(), JSON.stringify(disciplines), resolvedProjectId]
     );
-    const report = rr.rows[0];
+    const reportId = result.insertId;
 
     if (node_id) {
       const nid = parseInt(node_id);
       if (nid) {
         await pool.query(
-          'INSERT INTO eightd_node_links (report_id, node_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [report.id, nid]
+          'INSERT IGNORE INTO eightd_node_links (report_id, node_id) VALUES (?, ?)',
+          [reportId, nid]
         );
       }
     }
 
+    const [reportRows] = await pool.query('SELECT * FROM eightd_reports WHERE id = ?', [reportId]);
+    const report = reportRows[0];
     report.disciplines = mergedDisciplines(report.disciplines);
     res.status(201).json({ success: true, report });
   } catch (err) {
@@ -200,27 +202,28 @@ router.put('/:id', async (req, res) => {
     const id = parseInt(req.params.id);
     if (!id) return res.status(400).json({ success: false, message: 'Invalid id' });
 
-    const rr = await pool.query('SELECT * FROM eightd_reports WHERE id=$1', [id]);
-    if (!rr.rows.length) return res.status(404).json({ success: false, message: 'Report not found' });
+    const [rr] = await pool.query('SELECT * FROM eightd_reports WHERE id=?', [id]);
+    if (!rr.length) return res.status(404).json({ success: false, message: 'Report not found' });
 
     // RBAC
     const projectId = await getProjectForReport(pool, id);
     if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-    const existing = rr.rows[0];
+    const existing = rr[0];
     const { title, disciplines } = req.body;
 
     const newTitle       = (title !== undefined) ? title.trim() : existing.title;
     const newDisciplines = disciplines ? mergedDisciplines(disciplines) : mergedDisciplines(existing.disciplines);
     const newStatus      = computeStatus(newDisciplines);
 
-    const updated = await pool.query(
-      `UPDATE eightd_reports SET title=$1, disciplines=$2, status=$3, updated_at=NOW()
-       WHERE id=$4 RETURNING *`,
+    await pool.query(
+      `UPDATE eightd_reports SET title=?, disciplines=?, status=?, updated_at=NOW()
+       WHERE id=?`,
       [newTitle, JSON.stringify(newDisciplines), newStatus, id]
     );
 
-    const report = updated.rows[0];
+    const [updated] = await pool.query('SELECT * FROM eightd_reports WHERE id=?', [id]);
+    const report = updated[0];
     report.disciplines = mergedDisciplines(report.disciplines);
     res.json({ success: true, report });
   } catch (err) {
@@ -241,7 +244,7 @@ router.delete('/:id', async (req, res) => {
     const projectId = await getProjectForReport(pool, id);
     if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-    await pool.query('DELETE FROM eightd_reports WHERE id=$1', [id]);
+    await pool.query('DELETE FROM eightd_reports WHERE id=?', [id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[8D] delete error:', err);
@@ -263,7 +266,7 @@ router.post('/:id/link/:nodeId', async (req, res) => {
     if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
     await pool.query(
-      'INSERT INTO eightd_node_links (report_id, node_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      'INSERT IGNORE INTO eightd_node_links (report_id, node_id) VALUES (?, ?)',
       [reportId, nodeId]
     );
     res.json({ success: true });
@@ -287,7 +290,7 @@ router.delete('/:id/link/:nodeId', async (req, res) => {
     if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
     await pool.query(
-      'DELETE FROM eightd_node_links WHERE report_id=$1 AND node_id=$2',
+      'DELETE FROM eightd_node_links WHERE report_id=? AND node_id=?',
       [reportId, nodeId]
     );
     res.json({ success: true });
@@ -306,14 +309,14 @@ router.get('/:reportId/attachments', async (req, res) => {
     const reportId = parseInt(req.params.reportId);
     if (!reportId) return res.status(400).json({ success: false, message: 'Invalid reportId' });
 
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, report_id, disc_key, filename, mime_type, file_size, base64, description, created_at
        FROM   eightd_attachments
-       WHERE  report_id = $1
+       WHERE  report_id = ?
        ORDER  BY disc_key, created_at ASC`,
       [reportId]
     );
-    res.json({ success: true, attachments: result.rows });
+    res.json({ success: true, attachments: rows });
   } catch (err) {
     console.error('[8D] attachments list error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -340,20 +343,20 @@ router.post('/:reportId/attachments', async (req, res) => {
     }
 
     // Confirm report exists
-    const rr = await pool.query('SELECT id FROM eightd_reports WHERE id=$1', [reportId]);
-    if (!rr.rows.length) return res.status(404).json({ success: false, message: 'Report not found' });
+    const [rr] = await pool.query('SELECT id FROM eightd_reports WHERE id=?', [reportId]);
+    if (!rr.length) return res.status(404).json({ success: false, message: 'Report not found' });
 
     // RBAC
     const projectId = await getProjectForReport(pool, reportId);
     if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-    const result = await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO eightd_attachments (report_id, disc_key, filename, mime_type, file_size, base64, description, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-       RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
       [reportId, disc_key, filename, mime_type || 'application/octet-stream', file_size || null, base64, description || '']
     );
-    res.status(201).json({ success: true, attachment: result.rows[0] });
+    const [attachRows] = await pool.query('SELECT * FROM eightd_attachments WHERE id = ?', [result.insertId]);
+    res.status(201).json({ success: true, attachment: attachRows[0] });
   } catch (err) {
     console.error('[8D] attachment upload error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -374,7 +377,7 @@ router.patch('/:reportId/attachments/:attachId', async (req, res) => {
 
     const { description } = req.body;
     await pool.query(
-      'UPDATE eightd_attachments SET description=$1 WHERE id=$2 AND report_id=$3',
+      'UPDATE eightd_attachments SET description=? WHERE id=? AND report_id=?',
       [description || '', attachId, reportId]
     );
     res.json({ success: true });
@@ -396,7 +399,7 @@ router.delete('/:reportId/attachments/:attachId', async (req, res) => {
     const projectId = await getProjectForReport(pool, reportId);
     if (!await assertEditorRole(pool, res, projectId, req.user?.id)) return;
 
-    await pool.query('DELETE FROM eightd_attachments WHERE id=$1 AND report_id=$2', [attachId, reportId]);
+    await pool.query('DELETE FROM eightd_attachments WHERE id=? AND report_id=?', [attachId, reportId]);
     res.json({ success: true });
   } catch (err) {
     console.error('[8D] attachment delete error:', err);

@@ -35,8 +35,8 @@ router.post('/signup', async (req, res) => {
 
   try {
     // Check if email already exists
-    const existing = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1', [emailLower]);
-    if (existing.rows.length > 0) {
+    const [existing] = await pool.query('SELECT id FROM users WHERE LOWER(email) = ?', [emailLower]);
+    if (existing.length > 0) {
       return res.status(409).json({ success: false, message: 'An account with that email already exists' });
     }
 
@@ -44,24 +44,29 @@ router.post('/signup', async (req, res) => {
     const displayName = name?.trim() || emailLower.split('@')[0];
 
     // Create user
-    const userResult = await pool.query(
-      `INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id, email, name, created_at`,
+    const [userInsertResult] = await pool.query(
+      `INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`,
       [emailLower, displayName, password_hash]
     );
-    const user = userResult.rows[0];
+    const userId = userInsertResult.insertId;
+    const [userRows] = await pool.query(
+      'SELECT id, email, name, created_at FROM users WHERE id = ?',
+      [userId]
+    );
+    const user = userRows[0];
 
     // Create a default team for this user
     const teamSlug = `${displayName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${user.id}`;
-    const teamResult = await pool.query(
+    const [teamInsertResult] = await pool.query(
       `INSERT INTO teams (name, slug, description, created_by)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
+       VALUES (?, ?, ?, ?)`,
       [`${displayName}'s Team`, teamSlug, 'My workspace', user.id]
     );
-    const teamId = teamResult.rows[0].id;
+    const teamId = teamInsertResult.insertId;
 
     // Add user as owner of their team
     await pool.query(
-      `INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      `INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'owner')`,
       [teamId, user.id]
     );
 
@@ -89,11 +94,11 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      'SELECT id, email, name, password_hash FROM users WHERE LOWER(email) = $1',
+    const [rows] = await pool.query(
+      'SELECT id, email, name, password_hash FROM users WHERE LOWER(email) = ?',
       [email.toLowerCase().trim()]
     );
-    const user = result.rows[0];
+    const user = rows[0];
 
     if (!user || !user.password_hash) {
       // Generic message to prevent email enumeration
@@ -129,14 +134,14 @@ router.post('/logout', (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   const pool = req.app.locals.pool;
   try {
-    const result = await pool.query(
-      'SELECT id, email, name, created_at FROM users WHERE id = $1',
+    const [rows] = await pool.query(
+      'SELECT id, email, name, created_at FROM users WHERE id = ?',
       [req.user.id]
     );
-    if (!result.rows.length) {
+    if (!rows.length) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    res.json({ success: true, user: result.rows[0] });
+    res.json({ success: true, user: rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to fetch user' });
   }
@@ -153,11 +158,11 @@ router.post('/forgot-password', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      'SELECT id, email, name FROM users WHERE LOWER(email) = $1',
+    const [rows] = await pool.query(
+      'SELECT id, email, name FROM users WHERE LOWER(email) = ?',
       [email.toLowerCase().trim()]
     );
-    const user = result.rows[0];
+    const user = rows[0];
 
     // Always respond the same way to prevent email enumeration
     if (!user) {
@@ -169,7 +174,7 @@ router.post('/forgot-password', async (req, res) => {
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await pool.query(
-      'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
+      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
       [token, expires, user.id]
     );
 
@@ -216,12 +221,12 @@ router.post('/reset-password', async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, email, name FROM users
-       WHERE reset_token = $1 AND reset_token_expires > NOW()`,
+       WHERE reset_token = ? AND reset_token_expires > NOW()`,
       [token]
     );
-    const user = result.rows[0];
+    const user = rows[0];
 
     if (!user) {
       return res.status(400).json({
@@ -232,7 +237,7 @@ router.post('/reset-password', async (req, res) => {
 
     const password_hash = await bcrypt.hash(password, 12);
     await pool.query(
-      `UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2`,
+      `UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?`,
       [password_hash, user.id]
     );
 
@@ -289,11 +294,11 @@ router.put('/profile', authenticateToken, async (req, res) => {
 
   try {
     // Fetch current user
-    const userRes = await pool.query('SELECT id, email, name, password_hash FROM users WHERE id = $1', [req.user.id]);
-    if (!userRes.rows.length) {
+    const [userRows] = await pool.query('SELECT id, email, name, password_hash FROM users WHERE id = ?', [req.user.id]);
+    if (!userRows.length) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    const user = userRes.rows[0];
+    const user = userRows[0];
 
     const updates = [];
     const params  = [];
@@ -302,7 +307,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
     if (name !== undefined && name.trim() !== user.name) {
       const trimmed = name.trim();
       if (!trimmed) return res.status(400).json({ success: false, message: 'Name cannot be empty' });
-      updates.push(`name = $${params.length + 1}`);
+      updates.push(`name = ?`);
       params.push(trimmed);
     }
 
@@ -312,11 +317,11 @@ router.put('/profile', authenticateToken, async (req, res) => {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) {
         return res.status(400).json({ success: false, message: 'Invalid email address' });
       }
-      const existing = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1 AND id != $2', [emailLower, req.user.id]);
-      if (existing.rows.length) {
+      const [existingRows] = await pool.query('SELECT id FROM users WHERE LOWER(email) = ? AND id != ?', [emailLower, req.user.id]);
+      if (existingRows.length) {
         return res.status(409).json({ success: false, message: 'That email is already in use' });
       }
-      updates.push(`email = $${params.length + 1}`);
+      updates.push(`email = ?`);
       params.push(emailLower);
     }
 
@@ -333,7 +338,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
         return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
       }
       const newHash = await bcrypt.hash(newPassword, 12);
-      updates.push(`password_hash = $${params.length + 1}`);
+      updates.push(`password_hash = ?`);
       params.push(newHash);
     }
 
@@ -342,12 +347,14 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 
     params.push(req.user.id);
-    const result = await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length} RETURNING id, email, name`,
+    await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
       params
     );
 
-    res.json({ success: true, message: 'Profile updated', user: result.rows[0] });
+    const [updatedRows] = await pool.query('SELECT id, email, name FROM users WHERE id = ?', [req.user.id]);
+
+    res.json({ success: true, message: 'Profile updated', user: updatedRows[0] });
   } catch (err) {
     console.error('[Auth] Update profile error:', err);
     res.status(500).json({ success: false, message: 'Failed to update profile' });

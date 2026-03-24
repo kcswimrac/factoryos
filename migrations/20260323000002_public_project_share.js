@@ -6,23 +6,23 @@
  */
 module.exports = {
   name: 'public_project_share',
-  up: async (client) => {
-    await client.query(`
+  up: async (conn) => {
+    await conn.query(`
       ALTER TABLE projects
-        ADD COLUMN IF NOT EXISTS share_token UUID UNIQUE DEFAULT gen_random_uuid(),
-        ADD COLUMN IF NOT EXISTS is_public   BOOLEAN NOT NULL DEFAULT FALSE
-    `);
+        ADD COLUMN share_token VARCHAR(36) UNIQUE DEFAULT (UUID())
+    `).catch(() => {});
+    await conn.query(`
+      ALTER TABLE projects
+        ADD COLUMN is_public   TINYINT(1) NOT NULL DEFAULT 0
+    `).catch(() => {});
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS projects_share_token_idx ON projects(share_token)
-    `);
+    await conn.query(`
+      CREATE INDEX projects_share_token_idx ON projects(share_token)
+    `).catch(() => {});
   },
-  down: async (client) => {
-    await client.query(`DROP INDEX IF EXISTS projects_share_token_idx`);
-    await client.query(`
-      ALTER TABLE projects
-        DROP COLUMN IF EXISTS is_public,
-        DROP COLUMN IF EXISTS share_token
-    `);
+  down: async (conn) => {
+    await conn.query(`DROP INDEX projects_share_token_idx ON projects`).catch(() => {});
+    await conn.query(`ALTER TABLE projects DROP COLUMN is_public`).catch(() => {});
+    await conn.query(`ALTER TABLE projects DROP COLUMN share_token`).catch(() => {});
   }
 };

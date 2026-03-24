@@ -10,10 +10,12 @@
 
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
-const OpenAI  = require('openai');
+let OpenAI;
+try { OpenAI = require('openai'); } catch (e) { OpenAI = null; }
 const { getProjectRole } = require('../middleware/rbac');
 
 function getOpenAI() {
+  if (!OpenAI || !process.env.OPENAI_API_KEY) return null;
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: process.env.OPENAI_BASE_URL || 'https://polsia.com/ai/openai/v1',
@@ -22,6 +24,9 @@ function getOpenAI() {
 
 async function callAI(system, user, taskTag, maxTokens = 1800) {
   const openai = getOpenAI();
+  if (!openai) {
+    return JSON.stringify({ error: 'AI not configured', hint: 'Set OPENAI_API_KEY environment variable' });
+  }
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
@@ -48,15 +53,15 @@ async function requireAccess(req, res) {
     return null;
   }
 
-  const pr = await pool.query(
-    `SELECT p.*, t.is_demo FROM projects p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = $1`,
+  const [prRows] = await pool.query(
+    `SELECT p.*, t.is_demo FROM projects p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ?`,
     [projectId]
   );
-  if (!pr.rows.length) {
+  if (!prRows.length) {
     res.status(404).json({ success: false, message: 'Project not found' });
     return null;
   }
-  if (pr.rows[0].is_demo) return { projectId, role: 'viewer' };
+  if (prRows[0].is_demo) return { projectId, role: 'viewer' };
 
   const role = await getProjectRole(pool, projectId, userId);
   if (!role) {
@@ -68,14 +73,14 @@ async function requireAccess(req, res) {
 
 // ── Shared: fetch context ─────────────────────────────────────────────────────
 async function fetchContext(pool, projectId) {
-  const r = await pool.query(
+  const [rows] = await pool.query(
     `SELECT id, type, title, description, maturity, confidence, tags, promoted_node_id
      FROM discovery_objects
-     WHERE project_id = $1
+     WHERE project_id = ?
      ORDER BY type, title`,
     [projectId]
   );
-  return r.rows;
+  return rows;
 }
 
 function buildSummary(objects) {

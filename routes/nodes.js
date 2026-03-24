@@ -62,8 +62,8 @@ router.post('/', requireRole('editor'), async (req, res) => {
 
   // Validate parent exists if provided
   if (parent_id !== undefined && parent_id !== null) {
-    const parentCheck = await pool.query('SELECT id FROM nodes WHERE id = $1', [parent_id]);
-    if (parentCheck.rows.length === 0) {
+    const [parentRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [parent_id]);
+    if (parentRows.length === 0) {
       return res.status(400).json({
         success: false,
         message: `Parent node with id ${parent_id} does not exist`
@@ -72,16 +72,17 @@ router.post('/', requireRole('editor'), async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
+    const [insertResult] = await pool.query(
       `INSERT INTO nodes (name, part_number, type, description, parent_id, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [name, part_number, type, description || null, parent_id || null, project_id || null]
     );
 
-    res.status(201).json({ success: true, node: result.rows[0] });
+    const [nodeRows] = await pool.query('SELECT * FROM nodes WHERE id = ?', [insertResult.insertId]);
+
+    res.status(201).json({ success: true, node: nodeRows[0] });
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === 'ER_DUP_ENTRY') {
       // Unique constraint violation on part_number
       return res.status(409).json({
         success: false,
@@ -102,16 +103,16 @@ router.get('/', async (req, res) => {
   const pool = req.app.locals.pool;
   const tree = req.query.tree === 'true';
 
-  const result = await pool.query(
+  const [rows] = await pool.query(
     'SELECT * FROM nodes ORDER BY part_number ASC'
   );
 
   if (tree) {
-    const treeData = buildTree(result.rows);
-    return res.json({ success: true, nodes: treeData, count: result.rows.length });
+    const treeData = buildTree(rows);
+    return res.json({ success: true, nodes: treeData, count: rows.length });
   }
 
-  res.json({ success: true, nodes: result.rows, count: result.rows.length });
+  res.json({ success: true, nodes: rows, count: rows.length });
 });
 
 /**
@@ -128,19 +129,19 @@ router.get('/:id', async (req, res) => {
   }
 
   // Get the node itself
-  const nodeResult = await pool.query('SELECT * FROM nodes WHERE id = $1', [id]);
+  const [nodeRows] = await pool.query('SELECT * FROM nodes WHERE id = ?', [id]);
 
-  if (nodeResult.rows.length === 0) {
+  if (nodeRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
   // Recursive CTE to get all descendants at all depths
-  const subtreeResult = await pool.query(`
+  const [subtreeRows] = await pool.query(`
     WITH RECURSIVE subtree AS (
       -- Anchor: direct children
       SELECT *, 1 AS depth
       FROM nodes
-      WHERE parent_id = $1
+      WHERE parent_id = ?
 
       UNION ALL
 
@@ -152,9 +153,9 @@ router.get('/:id', async (req, res) => {
     SELECT * FROM subtree ORDER BY depth ASC, part_number ASC
   `, [id]);
 
-  const node = nodeResult.rows[0];
-  node.children_flat = subtreeResult.rows;
-  node.children = buildTree([node, ...subtreeResult.rows]).find(n => n.id === node.id)?.children || [];
+  const node = nodeRows[0];
+  node.children_flat = subtreeRows;
+  node.children = buildTree([node, ...subtreeRows]).find(n => n.id === node.id)?.children || [];
 
   res.json({ success: true, node });
 });
@@ -173,8 +174,8 @@ router.put('/:id', requireRole('editor'), async (req, res) => {
   }
 
   // Ensure node exists
-  const existing = await pool.query('SELECT * FROM nodes WHERE id = $1', [id]);
-  if (existing.rows.length === 0) {
+  const [existingRows] = await pool.query('SELECT * FROM nodes WHERE id = ?', [id]);
+  if (existingRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
@@ -187,23 +188,23 @@ router.put('/:id', requireRole('editor'), async (req, res) => {
   }
 
   // Prevent circular reference: new parent_id must not be a descendant of this node
-  if (parent_id !== undefined && parent_id !== null && parent_id != existing.rows[0].parent_id) {
+  if (parent_id !== undefined && parent_id !== null && parent_id != existingRows[0].parent_id) {
     // Can't set parent to self
     if (Number(parent_id) === Number(id)) {
       return res.status(400).json({ success: false, message: 'A node cannot be its own parent' });
     }
 
     // Check if parent_id is a descendant of this node
-    const circularCheck = await pool.query(`
+    const [circularRows] = await pool.query(`
       WITH RECURSIVE descendants AS (
-        SELECT id FROM nodes WHERE parent_id = $1
+        SELECT id FROM nodes WHERE parent_id = ?
         UNION ALL
         SELECT n.id FROM nodes n INNER JOIN descendants d ON n.parent_id = d.id
       )
-      SELECT id FROM descendants WHERE id = $2
+      SELECT id FROM descendants WHERE id = ?
     `, [id, parent_id]);
 
-    if (circularCheck.rows.length > 0) {
+    if (circularRows.length > 0) {
       return res.status(400).json({
         success: false,
         message: 'Cannot set parent to a descendant of this node (would create circular reference)'
@@ -211,8 +212,8 @@ router.put('/:id', requireRole('editor'), async (req, res) => {
     }
 
     // Validate parent exists
-    const parentCheck = await pool.query('SELECT id FROM nodes WHERE id = $1', [parent_id]);
-    if (parentCheck.rows.length === 0) {
+    const [parentRows] = await pool.query('SELECT id FROM nodes WHERE id = ?', [parent_id]);
+    if (parentRows.length === 0) {
       return res.status(400).json({ success: false, message: `Parent node ${parent_id} does not exist` });
     }
   }
@@ -220,13 +221,12 @@ router.put('/:id', requireRole('editor'), async (req, res) => {
   // Build dynamic update
   const updates = [];
   const values = [];
-  let paramIdx = 1;
 
-  if (name !== undefined) { updates.push(`name = $${paramIdx++}`); values.push(name); }
-  if (part_number !== undefined) { updates.push(`part_number = $${paramIdx++}`); values.push(part_number); }
-  if (type !== undefined) { updates.push(`type = $${paramIdx++}`); values.push(type); }
-  if (description !== undefined) { updates.push(`description = $${paramIdx++}`); values.push(description); }
-  if (parent_id !== undefined) { updates.push(`parent_id = $${paramIdx++}`); values.push(parent_id || null); }
+  if (name !== undefined) { updates.push(`name = ?`); values.push(name); }
+  if (part_number !== undefined) { updates.push(`part_number = ?`); values.push(part_number); }
+  if (type !== undefined) { updates.push(`type = ?`); values.push(type); }
+  if (description !== undefined) { updates.push(`description = ?`); values.push(description); }
+  if (parent_id !== undefined) { updates.push(`parent_id = ?`); values.push(parent_id || null); }
 
   if (updates.length === 0) {
     return res.status(400).json({ success: false, message: 'No fields to update' });
@@ -236,14 +236,16 @@ router.put('/:id', requireRole('editor'), async (req, res) => {
   values.push(id);
 
   try {
-    const result = await pool.query(
-      `UPDATE nodes SET ${updates.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
+    await pool.query(
+      `UPDATE nodes SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
 
-    res.json({ success: true, node: result.rows[0] });
+    const [updatedRows] = await pool.query('SELECT * FROM nodes WHERE id = ?', [id]);
+
+    res.json({ success: true, node: updatedRows[0] });
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
         success: false,
         message: `Part number '${part_number}' already exists`
@@ -266,23 +268,23 @@ router.delete('/:id', requireRole('editor'), async (req, res) => {
   }
 
   // Check exists
-  const existing = await pool.query('SELECT * FROM nodes WHERE id = $1', [id]);
-  if (existing.rows.length === 0) {
+  const [existingRows] = await pool.query('SELECT * FROM nodes WHERE id = ?', [id]);
+  if (existingRows.length === 0) {
     return res.status(404).json({ success: false, message: 'Node not found' });
   }
 
   // Block if has children
-  const children = await pool.query('SELECT id FROM nodes WHERE parent_id = $1 LIMIT 1', [id]);
-  if (children.rows.length > 0) {
+  const [childRows] = await pool.query('SELECT id FROM nodes WHERE parent_id = ? LIMIT 1', [id]);
+  if (childRows.length > 0) {
     return res.status(409).json({
       success: false,
       message: 'Cannot delete node with children. Remove or re-parent children first.'
     });
   }
 
-  await pool.query('DELETE FROM nodes WHERE id = $1', [id]);
+  await pool.query('DELETE FROM nodes WHERE id = ?', [id]);
 
-  res.json({ success: true, message: 'Node deleted', node: existing.rows[0] });
+  res.json({ success: true, message: 'Node deleted', node: existingRows[0] });
 });
 
 module.exports = router;

@@ -33,15 +33,15 @@ async function requireProjectAccess(req, res, minRole) {
   }
 
   // Check project exists
-  const pr = await pool.query(
-    `SELECT p.*, t.is_demo FROM projects p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = $1`,
+  const [prRows] = await pool.query(
+    `SELECT p.*, t.is_demo FROM projects p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ?`,
     [projectId]
   );
-  if (!pr.rows.length) {
+  if (!prRows.length) {
     res.status(404).json({ success: false, message: 'Project not found' });
     return null;
   }
-  const project = pr.rows[0];
+  const project = prRows[0];
 
   if (project.is_demo) return { projectId, role: 'viewer' };
 
@@ -72,28 +72,32 @@ router.get('/', async (req, res) => {
 
   const { type, maturity, confidence } = req.query;
 
-  let where = 'WHERE d.project_id = $1';
+  let where = 'WHERE d.project_id = ?';
   const params = [projectId];
 
   if (type && VALID_TYPES.includes(type)) {
     params.push(type);
-    where += ` AND d.type = $${params.length}`;
+    where += ` AND d.type = ?`;
   }
   if (maturity && VALID_MATURITY.includes(maturity)) {
     params.push(maturity);
-    where += ` AND d.maturity = $${params.length}`;
+    where += ` AND d.maturity = ?`;
   }
   if (confidence && VALID_CONFIDENCE.includes(confidence)) {
     params.push(confidence);
-    where += ` AND d.confidence = $${params.length}`;
+    where += ` AND d.confidence = ?`;
   }
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT
       d.*,
       COALESCE(
-        json_agg(a ORDER BY a.created_at ASC) FILTER (WHERE a.id IS NOT NULL),
-        '[]'
+        JSON_ARRAYAGG(
+          IF(a.id IS NOT NULL,
+            JSON_OBJECT('id', a.id, 'object_id', a.object_id, 'url', a.url, 'label', a.label, 'created_at', a.created_at),
+            NULL)
+        ),
+        JSON_ARRAY()
       ) AS attachments
     FROM discovery_objects d
     LEFT JOIN discovery_attachments a ON a.object_id = d.id
@@ -102,7 +106,19 @@ router.get('/', async (req, res) => {
     ORDER BY d.created_at DESC
   `, params);
 
-  res.json({ success: true, objects: result.rows });
+  // Clean up null entries from JSON_ARRAYAGG
+  for (const row of rows) {
+    if (Array.isArray(row.attachments)) {
+      row.attachments = row.attachments.filter(a => a !== null);
+    } else if (typeof row.attachments === 'string') {
+      try {
+        const parsed = JSON.parse(row.attachments);
+        row.attachments = Array.isArray(parsed) ? parsed.filter(a => a !== null) : [];
+      } catch(e) { row.attachments = []; }
+    }
+  }
+
+  res.json({ success: true, objects: rows });
 });
 
 // ── POST /api/projects/:projectId/discovery ───────────────────────────────────
@@ -124,11 +140,10 @@ router.post('/', async (req, res) => {
   const resolvedConfidence = VALID_CONFIDENCE.includes(confidence) ? confidence : 'low';
   const resolvedTags       = Array.isArray(tags) ? JSON.stringify(tags) : '[]';
 
-  const result = await pool.query(`
+  const [result] = await pool.query(`
     INSERT INTO discovery_objects
       (project_id, title, description, type, maturity, confidence, tags, created_by)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING *
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     projectId,
     title.trim(),
@@ -140,7 +155,8 @@ router.post('/', async (req, res) => {
     userId
   ]);
 
-  res.json({ success: true, object: { ...result.rows[0], attachments: [] } });
+  const [newRows] = await pool.query('SELECT * FROM discovery_objects WHERE id = ?', [result.insertId]);
+  res.json({ success: true, object: { ...newRows[0], attachments: [] } });
 });
 
 // ── GET /api/projects/:projectId/discovery/:id ────────────────────────────────
@@ -152,24 +168,38 @@ router.get('/:id', async (req, res) => {
   const { projectId } = ctx;
   const objId     = parseInt(req.params.id);
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT
       d.*,
       COALESCE(
-        json_agg(a ORDER BY a.created_at ASC) FILTER (WHERE a.id IS NOT NULL),
-        '[]'
+        JSON_ARRAYAGG(
+          IF(a.id IS NOT NULL,
+            JSON_OBJECT('id', a.id, 'object_id', a.object_id, 'url', a.url, 'label', a.label, 'created_at', a.created_at),
+            NULL)
+        ),
+        JSON_ARRAY()
       ) AS attachments
     FROM discovery_objects d
     LEFT JOIN discovery_attachments a ON a.object_id = d.id
-    WHERE d.id = $1 AND d.project_id = $2
+    WHERE d.id = ? AND d.project_id = ?
     GROUP BY d.id
   `, [objId, projectId]);
 
-  if (!result.rows.length) {
+  if (!rows.length) {
     return res.status(404).json({ success: false, message: 'Object not found' });
   }
 
-  res.json({ success: true, object: result.rows[0] });
+  const obj = rows[0];
+  if (Array.isArray(obj.attachments)) {
+    obj.attachments = obj.attachments.filter(a => a !== null);
+  } else if (typeof obj.attachments === 'string') {
+    try {
+      const parsed = JSON.parse(obj.attachments);
+      obj.attachments = Array.isArray(parsed) ? parsed.filter(a => a !== null) : [];
+    } catch(e) { obj.attachments = []; }
+  }
+
+  res.json({ success: true, object: obj });
 });
 
 // ── PUT /api/projects/:projectId/discovery/:id ────────────────────────────────
@@ -182,11 +212,11 @@ router.put('/:id', async (req, res) => {
   const objId     = parseInt(req.params.id);
 
   // Verify ownership
-  const existing = await pool.query(
-    `SELECT id FROM discovery_objects WHERE id = $1 AND project_id = $2`,
+  const [existing] = await pool.query(
+    `SELECT id FROM discovery_objects WHERE id = ? AND project_id = ?`,
     [objId, projectId]
   );
-  if (!existing.rows.length) {
+  if (!existing.length) {
     return res.status(404).json({ success: false, message: 'Object not found' });
   }
 
@@ -199,31 +229,31 @@ router.put('/:id', async (req, res) => {
   if (title !== undefined) {
     if (!title.trim()) return res.status(400).json({ success: false, message: 'title cannot be empty' });
     params.push(title.trim());
-    sets.push(`title = $${params.length}`);
+    sets.push(`title = ?`);
   }
   if (description !== undefined) {
     params.push(description?.trim() || null);
-    sets.push(`description = $${params.length}`);
+    sets.push(`description = ?`);
   }
   if (type !== undefined && VALID_TYPES.includes(type)) {
     params.push(type);
-    sets.push(`type = $${params.length}`);
+    sets.push(`type = ?`);
   }
   if (maturity !== undefined && VALID_MATURITY.includes(maturity)) {
     params.push(maturity);
-    sets.push(`maturity = $${params.length}`);
+    sets.push(`maturity = ?`);
   }
   if (confidence !== undefined && VALID_CONFIDENCE.includes(confidence)) {
     params.push(confidence);
-    sets.push(`confidence = $${params.length}`);
+    sets.push(`confidence = ?`);
   }
   if (tags !== undefined && Array.isArray(tags)) {
     params.push(JSON.stringify(tags));
-    sets.push(`tags = $${params.length}`);
+    sets.push(`tags = ?`);
   }
   if (functional_cluster !== undefined) {
     params.push(functional_cluster ? functional_cluster.trim() || null : null);
-    sets.push(`functional_cluster = $${params.length}`);
+    sets.push(`functional_cluster = ?`);
   }
 
   if (!sets.length) {
@@ -233,12 +263,13 @@ router.put('/:id', async (req, res) => {
   sets.push(`updated_at = NOW()`);
   params.push(objId);
 
-  const result = await pool.query(
-    `UPDATE discovery_objects SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
+  await pool.query(
+    `UPDATE discovery_objects SET ${sets.join(', ')} WHERE id = ?`,
     params
   );
 
-  res.json({ success: true, object: result.rows[0] });
+  const [updatedRows] = await pool.query('SELECT * FROM discovery_objects WHERE id = ?', [objId]);
+  res.json({ success: true, object: updatedRows[0] });
 });
 
 // ── DELETE /api/projects/:projectId/discovery/:id ─────────────────────────────
@@ -250,14 +281,19 @@ router.delete('/:id', async (req, res) => {
   const { projectId } = ctx;
   const objId     = parseInt(req.params.id);
 
-  const result = await pool.query(
-    `DELETE FROM discovery_objects WHERE id = $1 AND project_id = $2 RETURNING id`,
+  const [existing] = await pool.query(
+    `SELECT id FROM discovery_objects WHERE id = ? AND project_id = ?`,
     [objId, projectId]
   );
 
-  if (!result.rows.length) {
+  if (!existing.length) {
     return res.status(404).json({ success: false, message: 'Object not found' });
   }
+
+  await pool.query(
+    `DELETE FROM discovery_objects WHERE id = ? AND project_id = ?`,
+    [objId, projectId]
+  );
 
   res.json({ success: true });
 });
@@ -275,23 +311,25 @@ router.post('/:id/attachments', async (req, res) => {
   if (!url) return res.status(400).json({ success: false, message: 'url is required' });
 
   // Verify object belongs to this project
-  const check = await pool.query(
-    `SELECT id FROM discovery_objects WHERE id = $1 AND project_id = $2`,
+  const [check] = await pool.query(
+    `SELECT id FROM discovery_objects WHERE id = ? AND project_id = ?`,
     [objId, projectId]
   );
-  if (!check.rows.length) {
+  if (!check.length) {
     return res.status(404).json({ success: false, message: 'Object not found' });
   }
 
-  const result = await pool.query(
-    `INSERT INTO discovery_attachments (object_id, url, label) VALUES ($1, $2, $3) RETURNING *`,
+  const [result] = await pool.query(
+    `INSERT INTO discovery_attachments (object_id, url, label) VALUES (?, ?, ?)`,
     [objId, url, label?.trim() || null]
   );
 
-  // Touch updated_at on parent object
-  await pool.query(`UPDATE discovery_objects SET updated_at = NOW() WHERE id = $1`, [objId]);
+  const [newRows] = await pool.query('SELECT * FROM discovery_attachments WHERE id = ?', [result.insertId]);
 
-  res.json({ success: true, attachment: result.rows[0] });
+  // Touch updated_at on parent object
+  await pool.query(`UPDATE discovery_objects SET updated_at = NOW() WHERE id = ?`, [objId]);
+
+  res.json({ success: true, attachment: newRows[0] });
 });
 
 // ── DELETE /api/projects/:projectId/discovery/:id/attachments/:aid ────────────
@@ -305,21 +343,26 @@ router.delete('/:id/attachments/:aid', async (req, res) => {
   const aidId     = parseInt(req.params.aid);
 
   // Verify object belongs to project
-  const check = await pool.query(
-    `SELECT id FROM discovery_objects WHERE id = $1 AND project_id = $2`,
+  const [check] = await pool.query(
+    `SELECT id FROM discovery_objects WHERE id = ? AND project_id = ?`,
     [objId, projectId]
   );
-  if (!check.rows.length) {
+  if (!check.length) {
     return res.status(404).json({ success: false, message: 'Object not found' });
   }
 
-  const result = await pool.query(
-    `DELETE FROM discovery_attachments WHERE id = $1 AND object_id = $2 RETURNING id`,
+  const [existing] = await pool.query(
+    `SELECT id FROM discovery_attachments WHERE id = ? AND object_id = ?`,
     [aidId, objId]
   );
-  if (!result.rows.length) {
+  if (!existing.length) {
     return res.status(404).json({ success: false, message: 'Attachment not found' });
   }
+
+  await pool.query(
+    `DELETE FROM discovery_attachments WHERE id = ? AND object_id = ?`,
+    [aidId, objId]
+  );
 
   res.json({ success: true });
 });
@@ -335,23 +378,23 @@ router.get('/graph', async (req, res) => {
   const pool = req.app.locals.pool;
   const { projectId } = ctx;
 
-  const [nodesRes, edgesRes] = await Promise.all([
+  const [nodes, edges] = await Promise.all([
     pool.query(
       `SELECT id, title, type, maturity, confidence, functional_cluster
-       FROM discovery_objects WHERE project_id = $1 ORDER BY id`,
+       FROM discovery_objects WHERE project_id = ? ORDER BY id`,
       [projectId]
-    ),
+    ).then(([rows]) => rows),
     pool.query(
       `SELECT r.id, r.source_object_id, r.target_object_id,
               r.relationship_type, r.notes
        FROM discovery_relationships r
        JOIN discovery_objects o ON o.id = r.source_object_id
-       WHERE o.project_id = $1`,
+       WHERE o.project_id = ?`,
       [projectId]
-    ),
+    ).then(([rows]) => rows),
   ]);
 
-  res.json({ success: true, nodes: nodesRes.rows, edges: edgesRes.rows });
+  res.json({ success: true, nodes, edges });
 });
 
 // ── POST   /api/projects/:projectId/discovery/relationships ──────────────
@@ -379,23 +422,24 @@ router.post('/relationships', async (req, res) => {
   }
 
   // Verify both objects belong to this project
-  const check = await pool.query(
-    `SELECT id FROM discovery_objects WHERE id = ANY($1) AND project_id = $2`,
-    [[source_object_id, target_object_id], projectId]
+  const [checkRows] = await pool.query(
+    `SELECT id FROM discovery_objects WHERE id IN (?, ?) AND project_id = ?`,
+    [source_object_id, target_object_id, projectId]
   );
-  if (check.rows.length < 2) {
+  if (checkRows.length < 2) {
     return res.status(400).json({ success: false, message: 'One or both objects not found in this project' });
   }
 
   try {
-    const result = await pool.query(
+    const [result] = await pool.query(
       `INSERT INTO discovery_relationships (source_object_id, target_object_id, relationship_type, notes)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
+       VALUES (?, ?, ?, ?)`,
       [source_object_id, target_object_id, relationship_type, notes || null]
     );
-    res.status(201).json({ success: true, relationship: result.rows[0] });
+    const [newRows] = await pool.query('SELECT * FROM discovery_relationships WHERE id = ?', [result.insertId]);
+    res.status(201).json({ success: true, relationship: newRows[0] });
   } catch (err) {
-    if (err.code === '23505') {
+    if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ success: false, message: 'This relationship already exists' });
     }
     throw err;
@@ -412,17 +456,17 @@ router.delete('/relationships/:relId', async (req, res) => {
   const relId = parseInt(req.params.relId);
 
   // Verify relationship belongs to this project
-  const check = await pool.query(
+  const [checkRows] = await pool.query(
     `SELECT r.id FROM discovery_relationships r
      JOIN discovery_objects o ON o.id = r.source_object_id
-     WHERE r.id = $1 AND o.project_id = $2`,
+     WHERE r.id = ? AND o.project_id = ?`,
     [relId, projectId]
   );
-  if (!check.rows.length) {
+  if (!checkRows.length) {
     return res.status(404).json({ success: false, message: 'Relationship not found' });
   }
 
-  await pool.query(`DELETE FROM discovery_relationships WHERE id = $1`, [relId]);
+  await pool.query(`DELETE FROM discovery_relationships WHERE id = ?`, [relId]);
   res.json({ success: true });
 });
 
@@ -438,24 +482,32 @@ router.get('/architectures', async (req, res) => {
   const pool = req.app.locals.pool;
   const { projectId } = ctx;
 
-  const result = await pool.query(
+  const [rows] = await pool.query(
     `SELECT a.*,
       COALESCE(
-        (SELECT json_agg(json_build_object(
+        (SELECT JSON_ARRAYAGG(JSON_OBJECT(
           'id', o.id, 'title', o.title, 'type', o.type,
           'maturity', o.maturity, 'functional_cluster', o.functional_cluster
-        ) ORDER BY o.title)
+        ))
         FROM discovery_architecture_objects dao
         JOIN discovery_objects o ON o.id = dao.object_id
         WHERE dao.architecture_id = a.id
-        ), '[]'::json
+        ), JSON_ARRAY()
       ) AS objects
      FROM discovery_architectures a
-     WHERE a.project_id = $1
+     WHERE a.project_id = ?
      ORDER BY a.created_at ASC`,
     [projectId]
   );
-  res.json({ success: true, architectures: result.rows });
+
+  // Parse objects if returned as string
+  for (const row of rows) {
+    if (typeof row.objects === 'string') {
+      try { row.objects = JSON.parse(row.objects); } catch(e) { row.objects = []; }
+    }
+  }
+
+  res.json({ success: true, architectures: rows });
 });
 
 // ── POST /api/projects/:projectId/discovery/architectures ─────────────────
@@ -471,12 +523,13 @@ router.post('/architectures', async (req, res) => {
     return res.status(400).json({ success: false, message: 'name is required' });
   }
 
-  const result = await pool.query(
+  const [result] = await pool.query(
     `INSERT INTO discovery_architectures (project_id, name, description, pros, cons, risks)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+     VALUES (?, ?, ?, ?, ?, ?)`,
     [projectId, name.trim(), description || null, pros || null, cons || null, risks || null]
   );
-  res.status(201).json({ success: true, architecture: { ...result.rows[0], objects: [] } });
+  const [newRows] = await pool.query('SELECT * FROM discovery_architectures WHERE id = ?', [result.insertId]);
+  res.status(201).json({ success: true, architecture: { ...newRows[0], objects: [] } });
 });
 
 // ── PUT  /api/projects/:projectId/discovery/architectures/:archId ─────────
@@ -488,11 +541,11 @@ router.put('/architectures/:archId', async (req, res) => {
   const { projectId } = ctx;
   const archId = parseInt(req.params.archId);
 
-  const existing = await pool.query(
-    `SELECT id FROM discovery_architectures WHERE id = $1 AND project_id = $2`,
+  const [existing] = await pool.query(
+    `SELECT id FROM discovery_architectures WHERE id = ? AND project_id = ?`,
     [archId, projectId]
   );
-  if (!existing.rows.length) {
+  if (!existing.length) {
     return res.status(404).json({ success: false, message: 'Architecture not found' });
   }
 
@@ -503,24 +556,25 @@ router.put('/architectures/:archId', async (req, res) => {
   }
 
   const sets = [], params = [];
-  if (name !== undefined)        { params.push(name.trim());            sets.push(`name = $${params.length}`); }
-  if (description !== undefined) { params.push(description || null);    sets.push(`description = $${params.length}`); }
-  if (pros !== undefined)        { params.push(pros || null);           sets.push(`pros = $${params.length}`); }
-  if (cons !== undefined)        { params.push(cons || null);           sets.push(`cons = $${params.length}`); }
-  if (risks !== undefined)       { params.push(risks || null);          sets.push(`risks = $${params.length}`); }
-  if (status)                    { params.push(status);                 sets.push(`status = $${params.length}`); }
-  if (kill_reason !== undefined) { params.push(kill_reason || null);   sets.push(`kill_reason = $${params.length}`); }
+  if (name !== undefined)        { params.push(name.trim());            sets.push(`name = ?`); }
+  if (description !== undefined) { params.push(description || null);    sets.push(`description = ?`); }
+  if (pros !== undefined)        { params.push(pros || null);           sets.push(`pros = ?`); }
+  if (cons !== undefined)        { params.push(cons || null);           sets.push(`cons = ?`); }
+  if (risks !== undefined)       { params.push(risks || null);          sets.push(`risks = ?`); }
+  if (status)                    { params.push(status);                 sets.push(`status = ?`); }
+  if (kill_reason !== undefined) { params.push(kill_reason || null);   sets.push(`kill_reason = ?`); }
 
   if (!sets.length) return res.status(400).json({ success: false, message: 'No fields to update' });
 
   sets.push(`updated_at = NOW()`);
   params.push(archId);
 
-  const result = await pool.query(
-    `UPDATE discovery_architectures SET ${sets.join(', ')} WHERE id = $${params.length} RETURNING *`,
+  await pool.query(
+    `UPDATE discovery_architectures SET ${sets.join(', ')} WHERE id = ?`,
     params
   );
-  res.json({ success: true, architecture: result.rows[0] });
+  const [updatedRows] = await pool.query('SELECT * FROM discovery_architectures WHERE id = ?', [archId]);
+  res.json({ success: true, architecture: updatedRows[0] });
 });
 
 // ── DELETE /api/projects/:projectId/discovery/architectures/:archId ───────
@@ -532,11 +586,16 @@ router.delete('/architectures/:archId', async (req, res) => {
   const { projectId } = ctx;
   const archId = parseInt(req.params.archId);
 
-  const result = await pool.query(
-    `DELETE FROM discovery_architectures WHERE id = $1 AND project_id = $2 RETURNING id`,
+  const [existing] = await pool.query(
+    `SELECT id FROM discovery_architectures WHERE id = ? AND project_id = ?`,
     [archId, projectId]
   );
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Architecture not found' });
+  if (!existing.length) return res.status(404).json({ success: false, message: 'Architecture not found' });
+
+  await pool.query(
+    `DELETE FROM discovery_architectures WHERE id = ? AND project_id = ?`,
+    [archId, projectId]
+  );
   res.json({ success: true });
 });
 
@@ -552,21 +611,21 @@ router.post('/architectures/:archId/objects', async (req, res) => {
 
   if (!object_id) return res.status(400).json({ success: false, message: 'object_id required' });
 
-  const [archCheck, objCheck] = await Promise.all([
-    pool.query(`SELECT id FROM discovery_architectures WHERE id = $1 AND project_id = $2`, [archId, projectId]),
-    pool.query(`SELECT id FROM discovery_objects WHERE id = $1 AND project_id = $2`, [object_id, projectId]),
+  const [[archRows], [objRows]] = await Promise.all([
+    pool.query(`SELECT id FROM discovery_architectures WHERE id = ? AND project_id = ?`, [archId, projectId]),
+    pool.query(`SELECT id FROM discovery_objects WHERE id = ? AND project_id = ?`, [object_id, projectId]),
   ]);
-  if (!archCheck.rows.length) return res.status(404).json({ success: false, message: 'Architecture not found' });
-  if (!objCheck.rows.length)  return res.status(400).json({ success: false, message: 'Object not found in this project' });
+  if (!archRows.length) return res.status(404).json({ success: false, message: 'Architecture not found' });
+  if (!objRows.length)  return res.status(400).json({ success: false, message: 'Object not found in this project' });
 
   try {
     await pool.query(
-      `INSERT INTO discovery_architecture_objects (architecture_id, object_id) VALUES ($1, $2)`,
+      `INSERT INTO discovery_architecture_objects (architecture_id, object_id) VALUES (?, ?)`,
       [archId, object_id]
     );
     res.status(201).json({ success: true });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Object already linked' });
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: 'Object already linked' });
     throw err;
   }
 });
@@ -581,14 +640,14 @@ router.delete('/architectures/:archId/objects/:objId', async (req, res) => {
   const archId = parseInt(req.params.archId);
   const objId  = parseInt(req.params.objId);
 
-  const arch = await pool.query(
-    `SELECT id FROM discovery_architectures WHERE id = $1 AND project_id = $2`,
+  const [arch] = await pool.query(
+    `SELECT id FROM discovery_architectures WHERE id = ? AND project_id = ?`,
     [archId, projectId]
   );
-  if (!arch.rows.length) return res.status(404).json({ success: false, message: 'Architecture not found' });
+  if (!arch.length) return res.status(404).json({ success: false, message: 'Architecture not found' });
 
   await pool.query(
-    `DELETE FROM discovery_architecture_objects WHERE architecture_id = $1 AND object_id = $2`,
+    `DELETE FROM discovery_architecture_objects WHERE architecture_id = ? AND object_id = ?`,
     [archId, objId]
   );
   res.json({ success: true });

@@ -7,15 +7,15 @@
  */
 module.exports = {
   name: 'add_project_mode',
-  up: async (client) => {
-    await client.query(`
+  up: async (conn) => {
+    await conn.query(`
       ALTER TABLE projects
-        ADD COLUMN IF NOT EXISTS project_mode VARCHAR(20) NOT NULL DEFAULT 'top_down'
-    `);
+        ADD COLUMN project_mode VARCHAR(20) NOT NULL DEFAULT 'top_down'
+    `).catch(() => {});
   },
-  down: async (client) => {
-    await client.query(`
-      ALTER TABLE projects DROP COLUMN IF EXISTS project_mode
-    `);
+  down: async (conn) => {
+    await conn.query(`
+      ALTER TABLE projects DROP COLUMN project_mode
+    `).catch(() => {});
   }
 };

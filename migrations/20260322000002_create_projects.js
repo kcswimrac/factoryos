@@ -7,28 +7,28 @@
  */
 module.exports = {
   name: 'create_projects',
-  up: async (client) => {
+  up: async (conn) => {
     // Projects table
-    await client.query(`
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS projects (
-        id          SERIAL PRIMARY KEY,
+        id          INT AUTO_INCREMENT PRIMARY KEY,
         name        VARCHAR(255) NOT NULL,
         description TEXT,
         slug        VARCHAR(100) UNIQUE,
-        is_demo     BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at  TIMESTAMPTZ DEFAULT NOW(),
-        updated_at  TIMESTAMPTZ DEFAULT NOW()
+        is_demo     TINYINT(1) NOT NULL DEFAULT 0,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
 
     // Add project_id to nodes (nullable for backward compat)
-    await client.query(`
+    await conn.query(`
       ALTER TABLE nodes
-        ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
-    `);
+        ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL
+    `).catch(() => {});
 
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS nodes_project_id_idx ON nodes(project_id)
-    `);
+    await conn.query(`
+      CREATE INDEX nodes_project_id_idx ON nodes(project_id)
+    `).catch(() => {});
   }
 };

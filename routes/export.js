@@ -55,7 +55,7 @@ router.get('/bom', async (req, res) => {
       nodesQuery = `
         SELECT id, name, part_number, type, parent_id, description
         FROM nodes
-        WHERE project_id = $1
+        WHERE project_id = ?
         ORDER BY id
       `;
       nodesParams = [projectId];
@@ -68,8 +68,7 @@ router.get('/bom', async (req, res) => {
       nodesParams = [];
     }
 
-    const nodesResult = await pool.query(nodesQuery, nodesParams);
-    const nodes = nodesResult.rows;
+    const [nodes] = await pool.query(nodesQuery, nodesParams);
 
     if (nodes.length === 0) {
       // Return empty CSV with headers
@@ -86,23 +85,23 @@ router.get('/bom', async (req, res) => {
     const nodeIds = nodes.map(n => n.id);
 
     // ── 2. Fetch phase summaries ────────────────────────────────────────
-    const phasesResult = await pool.query(`
+    const [phasesRows] = await pool.query(`
       SELECT
         node_id,
-        COUNT(*)                                       AS total_phases,
-        COUNT(*) FILTER (WHERE status = 'complete')    AS complete_count,
-        COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_count,
-        STRING_AGG(
-          CASE WHEN status = 'in_progress' THEN COALESCE($2::jsonb->>phase, phase) END,
-          ', ' ORDER BY phase_order
+        COUNT(*) AS total_phases,
+        SUM(CASE WHEN status = 'complete' THEN 1 ELSE 0 END) AS complete_count,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress_count,
+        GROUP_CONCAT(
+          CASE WHEN status = 'in_progress' THEN phase END
+          ORDER BY phase_order SEPARATOR ', '
         ) AS active_phases
       FROM node_phases
-      WHERE node_id = ANY($1::int[])
+      WHERE node_id IN (?)
       GROUP BY node_id
-    `, [nodeIds, JSON.stringify(PHASE_LABELS)]);
+    `, [nodeIds]);
 
     const phaseMap = {};
-    phasesResult.rows.forEach(p => {
+    phasesRows.forEach(p => {
       const total   = parseInt(p.total_phases);
       const complete = parseInt(p.complete_count);
       const inProg  = parseInt(p.in_progress_count);
@@ -110,7 +109,9 @@ router.get('/bom', async (req, res) => {
       if (complete === total && total > 0) {
         phaseMap[p.node_id] = 'All Complete';
       } else if (inProg > 0 && p.active_phases) {
-        phaseMap[p.node_id] = 'In Progress: ' + p.active_phases;
+        // Map phase keys to display names
+        const activeLabels = p.active_phases.split(', ').map(ph => PHASE_LABELS[ph] || ph).join(', ');
+        phaseMap[p.node_id] = 'In Progress: ' + activeLabels;
       } else if (complete > 0) {
         phaseMap[p.node_id] = complete + '/' + total + ' phases complete';
       } else {
@@ -119,18 +120,18 @@ router.get('/bom', async (req, res) => {
     });
 
     // ── 3. Fetch requirements counts ────────────────────────────────────
-    const reqResult = await pool.query(`
+    const [reqRows] = await pool.query(`
       SELECT
         node_id,
-        COUNT(*)                                    AS total,
-        COUNT(*) FILTER (WHERE status = 'verified') AS verified
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) AS verified
       FROM requirements
-      WHERE node_id = ANY($1::int[])
+      WHERE node_id IN (?)
       GROUP BY node_id
     `, [nodeIds]);
 
     const reqMap = {};
-    reqResult.rows.forEach(r => {
+    reqRows.forEach(r => {
       reqMap[r.node_id] = { total: parseInt(r.total), verified: parseInt(r.verified) };
     });
 
@@ -158,9 +159,9 @@ router.get('/bom', async (req, res) => {
     // ── 5. Determine filename ───────────────────────────────────────────
     let projectSlug = 'bom';
     if (projectId && !isNaN(projectId)) {
-      const projResult = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
-      if (projResult.rows.length > 0) {
-        projectSlug = projResult.rows[0].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const [projRows] = await pool.query('SELECT name FROM projects WHERE id = ?', [projectId]);
+      if (projRows.length > 0) {
+        projectSlug = projRows[0].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       }
     }
 
@@ -195,7 +196,7 @@ router.get('/requirements', async (req, res) => {
                n.name AS node_name, n.part_number AS node_part_number
         FROM requirements r
         JOIN nodes n ON n.id = r.node_id
-        WHERE n.project_id = $1
+        WHERE n.project_id = ?
         ORDER BY r.req_id
       `;
       params = [projectId];
@@ -210,14 +211,14 @@ router.get('/requirements', async (req, res) => {
       params = [];
     }
 
-    const result = await pool.query(query, params);
+    const [rows] = await pool.query(query, params);
 
     const csvRows = [[
       'Req ID', 'Title', 'Priority', 'Status', 'Verification Method',
       'Assigned Node', 'Node Part Number'
     ]];
 
-    result.rows.forEach(r => {
+    rows.forEach(r => {
       csvRows.push([
         r.req_id,
         r.title,
@@ -231,9 +232,9 @@ router.get('/requirements', async (req, res) => {
 
     let projectSlug = 'requirements';
     if (projectId && !isNaN(projectId)) {
-      const projResult = await pool.query('SELECT name FROM projects WHERE id = $1', [projectId]);
-      if (projResult.rows.length > 0) {
-        projectSlug = projResult.rows[0].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-requirements';
+      const [projRows] = await pool.query('SELECT name FROM projects WHERE id = ?', [projectId]);
+      if (projRows.length > 0) {
+        projectSlug = projRows[0].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-requirements';
       }
     }
 

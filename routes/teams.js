@@ -15,30 +15,30 @@ router.get('/', async (req, res) => {
   const pool = req.app.locals.pool;
   const userId = req.user?.id || null;
 
-  let result;
+  let rows;
   if (userId) {
     // Return: demo teams + teams the user is a member of
-    result = await pool.query(`
+    [rows] = await pool.query(`
       SELECT
         t.*,
         COALESCE(tm.role, 'viewer') AS user_role,
-        COUNT(p.id)::int AS project_count
+        COUNT(p.id) AS project_count
       FROM teams t
       LEFT JOIN projects p ON p.team_id = t.id
-      LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $1
-      WHERE t.is_demo = TRUE OR tm.user_id = $1
+      LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+      WHERE t.is_demo = TRUE OR tm.user_id = ?
       GROUP BY t.id, tm.role
       ORDER BY t.is_demo ASC,
         CASE WHEN t.is_demo THEN CASE t.slug WHEN 'greyline' THEN 1 WHEN 'full-send' THEN 2 WHEN 'heavy-motion' THEN 3 ELSE 99 END END ASC,
         t.created_at ASC
-    `, [userId]);
+    `, [userId, userId]);
   } else {
     // No auth — return demo teams only
-    result = await pool.query(`
+    [rows] = await pool.query(`
       SELECT
         t.*,
         'viewer' AS user_role,
-        COUNT(p.id)::int AS project_count
+        COUNT(p.id) AS project_count
       FROM teams t
       LEFT JOIN projects p ON p.team_id = t.id
       WHERE t.is_demo = TRUE
@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
     `);
   }
 
-  res.json({ success: true, teams: result.rows });
+  res.json({ success: true, teams: rows });
 });
 
 // POST /api/teams — create team (auth required)
@@ -59,33 +59,34 @@ router.post('/', async (req, res) => {
   const { name, slug, description, logo_url } = req.body;
   if (!name) return res.status(400).json({ success: false, message: 'name required' });
 
-  const client = await pool.connect();
+  const conn = await pool.getConnection();
   try {
-    await client.query('BEGIN');
+    await conn.beginTransaction();
 
-    const result = await client.query(
+    const [result] = await conn.query(
       `INSERT INTO teams (name, slug, description, logo_url, created_by)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+       VALUES (?, ?, ?, ?, ?)`,
       [name, slug || null, description || null, logo_url || null, userId || null]
     );
-    const team = result.rows[0];
+    const [teamRows] = await conn.query('SELECT * FROM teams WHERE id = ?', [result.insertId]);
+    const team = teamRows[0];
 
     // Auto-add creator as owner
     if (userId) {
-      await client.query(
-        `INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      await conn.query(
+        `INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, 'owner')`,
         [team.id, userId]
       );
     }
 
-    await client.query('COMMIT');
+    await conn.commit();
     res.status(201).json({ success: true, team });
   } catch (err) {
-    await client.query('ROLLBACK');
-    if (err.code === '23505') return res.status(409).json({ success: false, message: 'Slug already exists' });
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: 'Slug already exists' });
     throw err;
   } finally {
-    client.release();
+    conn.release();
   }
 });
 
@@ -94,16 +95,16 @@ router.get('/:id', async (req, res) => {
   const pool = req.app.locals.pool;
   const userId = req.user?.id || null;
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT t.*
     FROM teams t
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $2
-    WHERE t.id = $1
-      AND (t.is_demo = TRUE OR tm.user_id = $2)
-  `, [req.params.id, userId]);
+    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+    WHERE t.id = ?
+      AND (t.is_demo = TRUE OR tm.user_id = ?)
+  `, [userId, req.params.id, userId]);
 
-  if (!result.rows.length) return res.status(404).json({ success: false, message: 'Team not found' });
-  res.json({ success: true, team: result.rows[0] });
+  if (!rows.length) return res.status(404).json({ success: false, message: 'Team not found' });
+  res.json({ success: true, team: rows[0] });
 });
 
 // GET /api/teams/:id/projects — get projects for a team
@@ -114,26 +115,26 @@ router.get('/:id/projects', async (req, res) => {
   if (!teamId) return res.status(400).json({ success: false, message: 'Invalid team id' });
 
   // Check access
-  const access = await pool.query(`
+  const [accessRows] = await pool.query(`
     SELECT 1 FROM teams t
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = $2
-    WHERE t.id = $1 AND (t.is_demo = TRUE OR tm.user_id = $2)
-  `, [teamId, userId]);
+    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+    WHERE t.id = ? AND (t.is_demo = TRUE OR tm.user_id = ?)
+  `, [userId, teamId, userId]);
 
-  if (!access.rows.length) return res.status(403).json({ success: false, message: 'Access denied' });
+  if (!accessRows.length) return res.status(403).json({ success: false, message: 'Access denied' });
 
-  const result = await pool.query(`
+  const [rows] = await pool.query(`
     SELECT
       p.*,
-      COUNT(n.id)::int AS node_count
+      COUNT(n.id) AS node_count
     FROM projects p
     LEFT JOIN nodes n ON n.project_id = p.id
-    WHERE p.team_id = $1
+    WHERE p.team_id = ?
     GROUP BY p.id
     ORDER BY p.created_at ASC
   `, [teamId]);
 
-  res.json({ success: true, projects: result.rows });
+  res.json({ success: true, projects: rows });
 });
 
 module.exports = router;

@@ -3,10 +3,10 @@
  * Adds vendor/procurement data for PURCH (purchased) nodes.
  */
 
-exports.up = async (client) => {
-  await client.query(`
+exports.up = async (conn) => {
+  await conn.query(`
     CREATE TABLE IF NOT EXISTS node_vendor_info (
-      id                SERIAL PRIMARY KEY,
+      id                INT AUTO_INCREMENT PRIMARY KEY,
       node_id           INTEGER NOT NULL UNIQUE REFERENCES nodes ON DELETE CASCADE,
       vendor_name       VARCHAR(255),
       vendor_part_number VARCHAR(255),
@@ -16,17 +16,17 @@ exports.up = async (client) => {
       unit_price        NUMERIC(12,4),
       pricing_notes     TEXT,
       sourcing_status   VARCHAR(50) DEFAULT 'evaluating',
-      created_at        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-      updated_at        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS node_vendor_info_node_id_idx ON node_vendor_info (node_id)
-  `);
+  await conn.query(`
+    CREATE INDEX node_vendor_info_node_id_idx ON node_vendor_info (node_id)
+  `).catch(() => {});
 
-  await client.query(`
+  await conn.query(`
     CREATE TABLE IF NOT EXISTS node_cutsheets (
-      id          SERIAL PRIMARY KEY,
+      id          INT AUTO_INCREMENT PRIMARY KEY,
       node_id     INTEGER NOT NULL REFERENCES nodes ON DELETE CASCADE,
       label       VARCHAR(255) DEFAULT '',
       file_name   VARCHAR(255),
@@ -34,17 +34,17 @@ exports.up = async (client) => {
       mime_type   VARCHAR(100) DEFAULT 'application/pdf',
       file_size   INTEGER,
       position    INTEGER DEFAULT 0,
-      created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS node_cutsheets_node_id_idx ON node_cutsheets (node_id)
-  `);
+  await conn.query(`
+    CREATE INDEX node_cutsheets_node_id_idx ON node_cutsheets (node_id)
+  `).catch(() => {});
 };
 
-exports.down = async (client) => {
-  await client.query('DROP TABLE IF EXISTS node_cutsheets CASCADE');
-  await client.query('DROP TABLE IF EXISTS node_vendor_info CASCADE');
+exports.down = async (conn) => {
+  await conn.query('DROP TABLE IF EXISTS node_cutsheets CASCADE');
+  await conn.query('DROP TABLE IF EXISTS node_vendor_info CASCADE');
 };
 
 exports.name = '20260322000007_create_node_vendor_info';
