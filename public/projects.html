@@ -651,6 +651,30 @@ async function loadData() {
         ]);
         allTeams = teamsRes.teams || [];
         allProjects = projectsRes.projects || [];
+
+        // Auto-seed demo data if DB is empty (first visit after migration)
+        if (allTeams.length === 0 && allProjects.length === 0) {
+            try {
+                var seedRes = await fetch('/api/demo/seed', {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+                    body: JSON.stringify({})
+                });
+                var seedData = await seedRes.json();
+                if (seedData.drone_project_id || seedData.baja_project_id || seedData.heavy_motion_project_id) {
+                    // Reload data after successful seed
+                    var [t2, p2] = await Promise.all([
+                        fetch('/api/teams', { headers: authHeaders() }).then(r => r.json()),
+                        fetch('/api/projects', { headers: authHeaders() }).then(r => r.json())
+                    ]);
+                    allTeams = t2.teams || [];
+                    allProjects = p2.projects || [];
+                }
+            } catch(seedErr) {
+                console.error('Auto-seed failed:', seedErr);
+            }
+        }
+
         render();
     } catch(e) {
         console.error('Failed to load data', e);

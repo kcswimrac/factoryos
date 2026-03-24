@@ -25,14 +25,20 @@ const fs = require('fs');
 const path = require('path');
 
 async function getConnection() {
-  return mysql.createConnection({
+  const config = {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '3306', 10),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'factoryos',
     multipleStatements: true,
-  });
+    connectTimeout: 10000,
+  };
+  // Enable SSL for cloud-hosted MySQL (required by most providers)
+  if (process.env.DB_SSL !== 'false' && process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
+    config.ssl = { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+  }
+  return mysql.createConnection(config);
 }
 
 async function migrate() {
