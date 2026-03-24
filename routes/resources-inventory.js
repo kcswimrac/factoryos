@@ -239,6 +239,18 @@ router.post('/:id/checkout', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Insufficient quantity available' });
     }
 
+    // T5.6: Calibration enforcement — block checkout of overdue equipment
+    if (resource.calibration_required && resource.calibration_due_at) {
+      const dueDate = new Date(resource.calibration_due_at);
+      if (dueDate < new Date()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Calibration overdue — this resource cannot be checked out until recalibrated',
+          calibrationDueAt: resource.calibration_due_at
+        });
+      }
+    }
+
     // Create checkout record
     const [result] = await pool.query(
       `INSERT INTO resource_checkouts

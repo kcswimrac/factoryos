@@ -158,9 +158,25 @@ app.use('/api/design/:projectId/reviews', optionalAuth, designReviewsRouter);
 const tradeStudiesRouter = require('./routes/trade-studies');
 app.use('/api/projects/:projectId/trade-studies', optionalAuth, tradeStudiesRouter);
 
-// Resources (tool & asset inventory with checkout/return)
+// Resources (tool & asset inventory with checkout/return + T5.6 calibration enforcement)
 const resourcesInventoryRouter = require('./routes/resources-inventory');
 app.use('/api/resources', optionalAuth, resourcesInventoryRouter);
+
+// Change control — ECR/ECN workflow (T5.1)
+const changeControlRouter = require('./routes/change-control');
+app.use('/api/change-control', optionalAuth, changeControlRouter);
+
+// Report generator (T5.2)
+const reportGeneratorRouter = require('./routes/report-generator');
+app.use('/api/reports', optionalAuth, reportGeneratorRouter);
+
+// Timeline with dependencies and critical path (T5.3)
+const timelineDepsRouter = require('./routes/timeline-deps');
+app.use('/api/timeline', optionalAuth, timelineDepsRouter);
+
+// Notifications + webhooks (T5.5)
+const notificationsRouter = require('./routes/notifications');
+app.use('/api/notifications', optionalAuth, notificationsRouter);
 
 // SOP execution (T2.5 — step-by-step with sign-off)
 const sopExecutionRouter = require('./routes/sop-execution');

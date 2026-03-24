@@ -333,8 +333,65 @@ router.post('/:id/chat', async (req, res) => {
       [projectId, role, message]
     );
 
-    // Generate AI response (placeholder — integrate OpenAI in production)
-    const aiResponse = `Thank you for your question about this design project. Based on the 9-phase engineering design methodology, I recommend focusing on completing the current phase's checklist items before moving forward. Each phase builds on the previous one, ensuring thorough engineering rigor.`;
+    // T5.4: Context-aware AI response using actual project data
+    let aiResponse;
+    let OpenAI;
+    try { OpenAI = require('openai'); } catch (e) { OpenAI = null; }
+
+    if (OpenAI && process.env.OPENAI_API_KEY) {
+      // Pull project context for the LLM
+      const [project] = await pool.query('SELECT * FROM design_projects WHERE id = ?', [projectId]);
+      const [phases] = await pool.query(
+        'SELECT phase_number, display_name, status, progress_percentage FROM design_phases WHERE project_id = ? ORDER BY phase_number',
+        [projectId]
+      );
+      const [reqs] = await pool.query(
+        'SELECT COUNT(*) AS total, SUM(CASE WHEN status = "verified" THEN 1 ELSE 0 END) AS verified FROM design_requirements WHERE project_id = ?',
+        [projectId]
+      );
+      const [gates] = await pool.query(
+        'SELECT gate_name, status FROM design_phase_gates WHERE project_id = ?',
+        [projectId]
+      );
+      const [chatHistory] = await pool.query(
+        'SELECT role, message FROM design_ai_chats WHERE project_id = ? ORDER BY created_at DESC LIMIT 10',
+        [projectId]
+      );
+
+      const contextStr = [
+        `Project: ${project[0]?.name || 'Unknown'}`,
+        `Phases: ${phases.map(p => `${p.phase_number} ${p.display_name}: ${p.status} (${p.progress_percentage}%)`).join(', ')}`,
+        `Requirements: ${reqs[0]?.total || 0} total, ${reqs[0]?.verified || 0} verified`,
+        `Gates: ${gates.map(g => `${g.gate_name}: ${g.status}`).join(', ') || 'none initialized'}`,
+      ].join('\n');
+
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: process.env.OPENAI_BASE_URL || 'https://polsia.com/ai/openai/v1',
+      });
+
+      const messages = [
+        { role: 'system', content: `You are an engineering design advisor for Factory-OS, a 7-phase engineering design platform. Give specific, actionable advice based on the project state. Be concise.\n\nProject Context:\n${contextStr}` },
+        ...chatHistory.reverse().map(c => ({ role: c.role, content: c.message })),
+        { role: 'user', content: message }
+      ];
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.4,
+        max_tokens: 800,
+      });
+      aiResponse = completion.choices[0].message.content;
+    } else {
+      // Fallback when AI not configured — provide phase-aware guidance
+      const [phases] = await pool.query(
+        'SELECT phase_number, display_name, status, progress_percentage FROM design_phases WHERE project_id = ? ORDER BY phase_number',
+        [projectId]
+      );
+      const current = phases.find(p => p.status !== 'completed') || phases[phases.length - 1];
+      aiResponse = `[AI not configured — set OPENAI_API_KEY for context-aware responses]\n\nBased on your project state: Phase ${current?.phase_number || '?'} (${current?.display_name || 'Unknown'}) is at ${current?.progress_percentage || 0}% progress. Focus on completing the remaining checklist items for this phase before advancing. Each phase builds on the previous — don't skip ahead.`;
+    }
 
     await pool.query(
       'INSERT INTO design_ai_chats (project_id, role, message) VALUES (?, ?, ?)',
