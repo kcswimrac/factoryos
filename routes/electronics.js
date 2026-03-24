@@ -67,6 +67,15 @@ router.put('/:nodeId/electronics', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
 
+// DELETE electronics properties (reset to defaults)
+router.delete('/:nodeId/electronics', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    await pool.query('DELETE FROM node_electronics WHERE node_id = ?', [req.params.nodeId]);
+    res.json({ success: true, message: 'Electronics properties removed' });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // T3.2: EDA Tool Linking
 // ══════════════════════════════════════════════════════════════════════════════
