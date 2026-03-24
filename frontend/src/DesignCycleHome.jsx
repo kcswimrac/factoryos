@@ -48,7 +48,7 @@ const PHASE_DISPLAY = [
   { number: 7, subPhase: null, name: 'Correlation', short: 'Corr' }
 ];
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Helper to get phase index from number and subphase
 const getPhaseIndex = (number, subPhase) => {

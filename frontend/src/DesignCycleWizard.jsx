@@ -45,7 +45,7 @@ import CADLinkUploadModal from './components/design-cycle/CADLinkUploadModal';
 
 import { getProjectById } from './data/demoProjects';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // AI Suggestions per phase (updated for 7-phase with sub-phases)
 const AI_SUGGESTIONS = {

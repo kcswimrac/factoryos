@@ -33,7 +33,7 @@ import {
 import PageSummary from '../ui/PageSummary';
 import { DEMO_SOPS } from '../../data/demoSOPs';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // SOP Type configurations
 const SOP_TYPES = {

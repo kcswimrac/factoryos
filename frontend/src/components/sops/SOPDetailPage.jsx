@@ -62,7 +62,7 @@ function useIsMobile() {
   return isMobile;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // SOP Type configurations
 const SOP_TYPES = {

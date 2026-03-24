@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const OpenAI = require('openai');
 
-// Build OpenAI client using Polsia AI proxy
+// Build OpenAI client using Polsia AI proxy (graceful fallback if not configured)
+let OpenAI;
+try { OpenAI = require('openai'); } catch (e) { OpenAI = null; }
+
 function getOpenAI() {
+  if (!OpenAI || !process.env.OPENAI_API_KEY) return null;
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     baseURL: process.env.OPENAI_BASE_URL || 'https://polsia.com/ai/openai/v1',
@@ -363,6 +366,9 @@ Rules:
 // ── Helper: Call OpenAI ───────────────────────────────────────────────────────
 async function callAI(system, user, taskTag, maxTokens = 1200) {
   const openai = getOpenAI();
+  if (!openai) {
+    return JSON.stringify({ error: 'AI not configured', hint: 'Set OPENAI_API_KEY environment variable' });
+  }
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [

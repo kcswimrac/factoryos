@@ -13,7 +13,7 @@ import {
 } from './components/design-cycle';
 import { DOMAIN_LENSES, SPECIFICATION_LEVELS, RIGOR_TIERS } from './config/designPhases';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 function DesignCycleNewProject() {
   const navigate = useNavigate();

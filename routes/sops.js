@@ -173,7 +173,7 @@ router.put('/:id/steps/reorder', async (req, res) => {
       }
       await conn.commit();
     } catch (e) {
-      await conn.rollback();
+      await conn.rollback().catch(() => {});
       throw e;
     } finally {
       conn.release();

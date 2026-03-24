@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-// In-memory visitor tracking
-let visitorCount = 0;
-const clients = new Set();
-
 // ── GET /stream — SSE stream for real-time visitor count ─────────────────────
+// Note: SSE requires persistent connections. On Vercel serverless, this endpoint
+// will return a single event then close. For true real-time, use Pusher (frontend
+// already has Pusher integration in Header.jsx).
 
 router.get('/stream', (req, res) => {
   res.writeHead(200, {
@@ -15,34 +14,37 @@ router.get('/stream', (req, res) => {
     'X-Accel-Buffering': 'no'
   });
 
-  visitorCount++;
-  clients.add(res);
+  // Send a single count event (serverless-compatible)
+  res.write(`data: ${JSON.stringify({ count: 1, note: 'Use Pusher for real-time tracking' })}\n\n`);
 
-  // Send current count to new client
-  res.write(`data: ${JSON.stringify({ count: visitorCount })}\n\n`);
+  // On serverless, end the response to avoid hanging
+  if (process.env.VERCEL) {
+    res.end();
+    return;
+  }
 
-  // Broadcast updated count to all clients
-  broadcastCount();
-
-  // Handle client disconnect
+  // On traditional servers, keep connection open
   req.on('close', () => {
-    visitorCount = Math.max(0, visitorCount - 1);
-    clients.delete(res);
-    broadcastCount();
+    // Client disconnected
   });
 });
 
-// ── GET /count — REST endpoint for polling ───────────────────────────────────
+// ── GET /count — REST endpoint for polling (serverless-compatible) ───────────
 
-router.get('/count', (req, res) => {
-  res.json({ success: true, data: { count: visitorCount } });
-});
-
-function broadcastCount() {
-  const data = JSON.stringify({ count: visitorCount });
-  for (const client of clients) {
-    client.write(`data: ${data}\n\n`);
+router.get('/count', async (req, res) => {
+  try {
+    // Try to get count from database (serverless-safe)
+    const pool = req.app.locals.pool;
+    if (pool) {
+      const [rows] = await pool.query(
+        "SELECT COUNT(*) AS cnt FROM page_views WHERE viewed_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)"
+      ).catch(() => [[{ cnt: 0 }]]);
+      return res.json({ success: true, data: { count: rows[0].cnt || 0 } });
+    }
+    res.json({ success: true, data: { count: 0 } });
+  } catch (err) {
+    res.json({ success: true, data: { count: 0 } });
   }
-}
+});
 
 module.exports = router;
