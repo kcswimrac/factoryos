@@ -7,7 +7,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Create MySQL connection pool
-const pool = mysql.createPool({
+const poolConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306', 10),
   user: process.env.DB_USER || 'root',
@@ -16,7 +16,13 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-});
+  connectTimeout: 10000,
+};
+// Enable SSL for cloud-hosted MySQL (required by most providers)
+if (process.env.DB_SSL !== 'false' && process.env.DB_HOST && process.env.DB_HOST !== 'localhost') {
+  poolConfig.ssl = { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' };
+}
+const pool = mysql.createPool(poolConfig);
 
 // Make pool available to all route handlers via req.app.locals.pool
 app.locals.pool = pool;

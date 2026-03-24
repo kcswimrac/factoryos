@@ -34,26 +34,31 @@ router.get('/', async (req, res) => {
   const pool   = req.app.locals.pool;
   const userId = req.user?.id || null;
 
-  const [rows] = await pool.query(`
-    SELECT
-      p.*,
-      t.name AS team_name,
-      t.slug AS team_slug,
-      t.logo_url AS team_logo_url,
-      COUNT(DISTINCT n.id) AS node_count,
-      COALESCE(pm.role, CASE WHEN t.is_demo THEN 'viewer' ELSE NULL END) AS user_role
-    FROM projects p
-    LEFT JOIN teams t ON t.id = p.team_id
-    LEFT JOIN nodes n ON n.project_id = p.id
-    LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
-    LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
-    WHERE t.is_demo = TRUE
-       OR tm.user_id = ?
-       OR pm.user_id = ?
-    GROUP BY p.id, t.id, pm.role
-    ORDER BY p.is_demo ASC, p.created_at ASC
-  `, [userId, userId, userId, userId]);
-  res.json({ success: true, projects: rows });
+  try {
+    const [rows] = await pool.query(`
+      SELECT
+        p.*,
+        t.name AS team_name,
+        t.slug AS team_slug,
+        t.logo_url AS team_logo_url,
+        COUNT(DISTINCT n.id) AS node_count,
+        COALESCE(pm.role, CASE WHEN t.is_demo THEN 'viewer' ELSE NULL END) AS user_role
+      FROM projects p
+      LEFT JOIN teams t ON t.id = p.team_id
+      LEFT JOIN nodes n ON n.project_id = p.id
+      LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+      LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
+      WHERE t.is_demo = TRUE
+         OR tm.user_id = ?
+         OR pm.user_id = ?
+      GROUP BY p.id, t.id, pm.role
+      ORDER BY p.is_demo ASC, p.created_at ASC
+    `, [userId, userId, userId, userId]);
+    res.json({ success: true, projects: rows });
+  } catch (err) {
+    console.error('[GET /api/projects] DB error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to load projects' });
+  }
 });
 
 // ── POST /api/projects ────────────────────────────────────────────────────────

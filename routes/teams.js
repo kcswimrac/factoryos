@@ -15,41 +15,46 @@ router.get('/', async (req, res) => {
   const pool = req.app.locals.pool;
   const userId = req.user?.id || null;
 
-  let rows;
-  if (userId) {
-    // Return: demo teams + teams the user is a member of
-    [rows] = await pool.query(`
-      SELECT
-        t.*,
-        COALESCE(tm.role, 'viewer') AS user_role,
-        COUNT(p.id) AS project_count
-      FROM teams t
-      LEFT JOIN projects p ON p.team_id = t.id
-      LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
-      WHERE t.is_demo = TRUE OR tm.user_id = ?
-      GROUP BY t.id, tm.role
-      ORDER BY t.is_demo ASC,
-        CASE WHEN t.is_demo THEN CASE t.slug WHEN 'greyline' THEN 1 WHEN 'full-send' THEN 2 WHEN 'heavy-motion' THEN 3 ELSE 99 END END ASC,
-        t.created_at ASC
-    `, [userId, userId]);
-  } else {
-    // No auth — return demo teams only
-    [rows] = await pool.query(`
-      SELECT
-        t.*,
-        'viewer' AS user_role,
-        COUNT(p.id) AS project_count
-      FROM teams t
-      LEFT JOIN projects p ON p.team_id = t.id
-      WHERE t.is_demo = TRUE
-      GROUP BY t.id
-      ORDER BY
-        CASE t.slug WHEN 'greyline' THEN 1 WHEN 'full-send' THEN 2 WHEN 'heavy-motion' THEN 3 ELSE 99 END ASC,
-        t.created_at ASC
-    `);
-  }
+  try {
+    let rows;
+    if (userId) {
+      // Return: demo teams + teams the user is a member of
+      [rows] = await pool.query(`
+        SELECT
+          t.*,
+          COALESCE(tm.role, 'viewer') AS user_role,
+          COUNT(p.id) AS project_count
+        FROM teams t
+        LEFT JOIN projects p ON p.team_id = t.id
+        LEFT JOIN team_members tm ON tm.team_id = t.id AND tm.user_id = ?
+        WHERE t.is_demo = TRUE OR tm.user_id = ?
+        GROUP BY t.id, tm.role
+        ORDER BY t.is_demo ASC,
+          CASE WHEN t.is_demo THEN CASE t.slug WHEN 'greyline' THEN 1 WHEN 'full-send' THEN 2 WHEN 'heavy-motion' THEN 3 ELSE 99 END END ASC,
+          t.created_at ASC
+      `, [userId, userId]);
+    } else {
+      // No auth — return demo teams only
+      [rows] = await pool.query(`
+        SELECT
+          t.*,
+          'viewer' AS user_role,
+          COUNT(p.id) AS project_count
+        FROM teams t
+        LEFT JOIN projects p ON p.team_id = t.id
+        WHERE t.is_demo = TRUE
+        GROUP BY t.id
+        ORDER BY
+          CASE t.slug WHEN 'greyline' THEN 1 WHEN 'full-send' THEN 2 WHEN 'heavy-motion' THEN 3 ELSE 99 END ASC,
+          t.created_at ASC
+      `);
+    }
 
-  res.json({ success: true, teams: rows });
+    res.json({ success: true, teams: rows });
+  } catch (err) {
+    console.error('[GET /api/teams] DB error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to load teams' });
+  }
 });
 
 // POST /api/teams — create team (auth required)
