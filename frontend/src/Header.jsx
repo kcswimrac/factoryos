@@ -33,6 +33,25 @@ const Header = () => {
   const [visitorCount, setVisitorCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
 
+  // DB connection status
+  const [dbStatus, setDbStatus] = useState('checking'); // 'connected' | 'error' | 'not_configured' | 'checking'
+  const [statusTooltip, setStatusTooltip] = useState(false);
+
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        setDbStatus(data.database?.status || 'error');
+      } catch {
+        setDbStatus('error');
+      }
+    };
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     // Dynamically import Pusher to avoid SSR issues
     let pusherInstance = null;
@@ -215,14 +234,11 @@ const Header = () => {
         <div className="flex justify-between items-center h-16">
           {/* Left Side: Live indicator + Logo + Nav */}
           <div className="flex items-center gap-8">
-            {/* Live Visitors Indicator - Minimal */}
+            {/* Live Visitors + Status Indicator */}
             <div
-              className={`hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors ${
-                isConnected
-                  ? 'bg-emerald-500/10 border border-emerald-500/30'
-                  : 'bg-gray-500/10 border border-gray-500/30'
-              }`}
-              title={isConnected ? 'Live visitor count' : 'Connecting...'}
+              className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors bg-emerald-500/10 border border-emerald-500/30 relative cursor-default"
+              onMouseEnter={() => setStatusTooltip(true)}
+              onMouseLeave={() => setStatusTooltip(false)}
             >
               <div className="relative">
                 <Radio className={`w-3.5 h-3.5 ${isConnected ? 'text-emerald-400' : 'text-gray-400'}`} />
@@ -233,6 +249,34 @@ const Header = () => {
               <span className={`text-xs font-medium ${isConnected ? 'text-emerald-400' : 'text-gray-400'}`}>
                 {visitorCount > 0 ? visitorCount : '—'} <span className={`hidden md:inline ${isConnected ? 'text-emerald-400/70' : 'text-gray-400/70'}`}>live</span>
               </span>
+
+              {/* Status Tooltip */}
+              {statusTooltip && (
+                <div className="absolute top-full left-0 mt-2 w-52 bg-[#15181C] border border-[#2A2F36] rounded-lg shadow-2xl p-3 z-50 text-xs">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[#6B7280] uppercase tracking-wider font-medium" style={{fontSize:'10px'}}>Realtime</span>
+                    <span className={`flex items-center gap-1 font-medium ${isConnected ? 'text-emerald-400' : 'text-gray-400'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-gray-400'}`} />
+                      {isConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#6B7280] uppercase tracking-wider font-medium" style={{fontSize:'10px'}}>Database</span>
+                    <span className={`flex items-center gap-1 font-medium ${
+                      dbStatus === 'connected' ? 'text-emerald-400' :
+                      dbStatus === 'checking' ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        dbStatus === 'connected' ? 'bg-emerald-400' :
+                        dbStatus === 'checking' ? 'bg-yellow-400' : 'bg-red-400'
+                      }`} />
+                      {dbStatus === 'connected' ? 'Connected' :
+                       dbStatus === 'checking' ? 'Checking...' :
+                       dbStatus === 'not_configured' ? 'Not Configured' : 'Error'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Logo */}

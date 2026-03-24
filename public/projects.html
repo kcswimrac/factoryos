@@ -68,6 +68,23 @@
         }
         .topnav-right { display: flex; align-items: center; gap: 10px; }
 
+        /* ── STATUS PILL ── */
+        .status-pill {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(0,174,104,0.08);
+            border: 1px solid rgba(0,174,104,0.25);
+            cursor: default;
+            position: relative;
+            transition: all 0.15s;
+        }
+        .status-pill.disconnected {
+            background: rgba(113,113,122,0.08);
+            border-color: rgba(113,113,122,0.25);
+        }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
         /* ── BUTTONS ── */
         .btn-ghost {
             height: 32px; padding: 0 14px;
@@ -452,6 +469,29 @@
 <!-- NAV -->
 <nav class="topnav">
     <div class="topnav-left">
+        <!-- Live Status Indicator -->
+        <div id="statusIndicator" class="status-pill" onmouseenter="document.getElementById('statusTooltip').style.display='block'" onmouseleave="document.getElementById('statusTooltip').style.display='none'">
+            <div style="position:relative;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="statusIcon" style="color:#71717A"><circle cx="12" cy="12" r="2"/><path d="M4.93 19.07A10 10 0 0 1 2 12C2 6.48 6.48 2 12 2s10 4.48 10 10a10 10 0 0 1-2.93 7.07"/><path d="M7.76 16.24A6 6 0 0 1 6 12a6 6 0 0 1 12 0 6 6 0 0 1-1.76 4.24"/></svg>
+                <span id="statusPulse" style="display:none;position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:#34d399;border-radius:50%;animation:pulse 2s infinite;"></span>
+            </div>
+            <span id="statusLabel" style="font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:#71717A;">—</span>
+            <!-- Tooltip -->
+            <div id="statusTooltip" style="display:none;position:absolute;top:100%;left:0;margin-top:8px;width:200px;background:#15181C;border:1px solid #2A2F36;border-radius:8px;padding:10px 12px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-family:'DM Mono',monospace;font-size:10px;color:#52525B;text-transform:uppercase;letter-spacing:1px;">Realtime</span>
+                    <span id="ttRealtime" style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:#71717A;">
+                        <span id="ttRealtimeDot" style="width:6px;height:6px;border-radius:50%;background:#71717A;"></span> Disconnected
+                    </span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-family:'DM Mono',monospace;font-size:10px;color:#52525B;text-transform:uppercase;letter-spacing:1px;">Database</span>
+                    <span id="ttDatabase" style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:#eab308;">
+                        <span id="ttDbDot" style="width:6px;height:6px;border-radius:50%;background:#eab308;"></span> Checking...
+                    </span>
+                </div>
+            </div>
+        </div>
         <a href="/" class="logo">Factory<span>OS</span></a>
         <div class="nav-sep"></div>
         <span class="nav-title">Projects</span>
@@ -969,6 +1009,97 @@ async function goToDroneDemo() {
         toast('Could not load demo: ' + e.message, 'error');
     }
 }
+
+// ─── LIVE STATUS (Pusher + DB Health) ────────────────────────────────────────
+
+var _visitorCount = 0;
+var _rtConnected = false;
+
+function updateStatusUI() {
+    var pill = document.getElementById('statusIndicator');
+    var icon = document.getElementById('statusIcon');
+    var pulse = document.getElementById('statusPulse');
+    var label = document.getElementById('statusLabel');
+
+    if (_rtConnected) {
+        pill.classList.remove('disconnected');
+        icon.style.color = '#34d399';
+        pulse.style.display = 'block';
+        label.style.color = '#34d399';
+        label.textContent = (_visitorCount > 0 ? _visitorCount : '—') + ' live';
+    } else {
+        pill.classList.add('disconnected');
+        icon.style.color = '#71717A';
+        pulse.style.display = 'none';
+        label.style.color = '#71717A';
+        label.textContent = '—';
+    }
+
+    // Tooltip - realtime
+    var ttRt = document.getElementById('ttRealtime');
+    var ttRtDot = document.getElementById('ttRealtimeDot');
+    if (_rtConnected) {
+        ttRt.style.color = '#34d399'; ttRtDot.style.background = '#34d399';
+        ttRt.innerHTML = '<span id="ttRealtimeDot" style="width:6px;height:6px;border-radius:50%;background:#34d399;"></span> Connected';
+    } else {
+        ttRt.style.color = '#71717A'; ttRtDot.style.background = '#71717A';
+        ttRt.innerHTML = '<span id="ttRealtimeDot" style="width:6px;height:6px;border-radius:50%;background:#71717A;"></span> Disconnected';
+    }
+}
+
+// DB health check
+function checkDbHealth() {
+    fetch('/health').then(function(r) { return r.json(); }).then(function(data) {
+        var st = (data.database && data.database.status) || 'error';
+        var ttDb = document.getElementById('ttDatabase');
+        var color = st === 'connected' ? '#34d399' : st === 'checking' ? '#eab308' : '#f87171';
+        var text = st === 'connected' ? 'Connected' : st === 'not_configured' ? 'Not Configured' : 'Error';
+        ttDb.style.color = color;
+        ttDb.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:' + color + ';display:inline-block;"></span> ' + text;
+    }).catch(function() {
+        var ttDb = document.getElementById('ttDatabase');
+        ttDb.style.color = '#f87171';
+        ttDb.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:#f87171;display:inline-block;"></span> Error';
+    });
+}
+
+checkDbHealth();
+setInterval(checkDbHealth, 30000);
+
+// Pusher presence channel (loaded from CDN for vanilla pages)
+(function() {
+    var script = document.createElement('script');
+    script.src = 'https://js.pusher.com/8.2.0/pusher.min.js';
+    script.onload = function() {
+        // Read Pusher key from a meta tag or inline config
+        // The key is injected server-side or fetched from config
+        fetch('/api/config/pusher').then(function(r) { return r.json(); }).catch(function() {
+            return { key: null };
+        }).then(function(cfg) {
+            if (!cfg || !cfg.key) return;
+            var pusher = new Pusher(cfg.key, {
+                cluster: cfg.cluster || 'us2',
+                authEndpoint: '/api/pusher/auth'
+            });
+            var channel = pusher.subscribe('presence-visitors');
+            channel.bind('pusher:subscription_succeeded', function(members) {
+                _rtConnected = true; _visitorCount = members.count; updateStatusUI();
+            });
+            channel.bind('pusher:member_added', function() {
+                _visitorCount++; updateStatusUI();
+            });
+            channel.bind('pusher:member_removed', function() {
+                _visitorCount = Math.max(0, _visitorCount - 1); updateStatusUI();
+            });
+            channel.bind('pusher:subscription_error', function() {
+                _rtConnected = false; updateStatusUI();
+            });
+            pusher.connection.bind('connected', function() { _rtConnected = true; updateStatusUI(); });
+            pusher.connection.bind('disconnected', function() { _rtConnected = false; updateStatusUI(); });
+        });
+    };
+    document.head.appendChild(script);
+})();
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 
