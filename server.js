@@ -54,9 +54,74 @@ const { authenticateToken, optionalAuth, requireAuthForWrites, rateLimit } = req
 const { trackPageViews } = require('./middleware/analytics');
 app.use(trackPageViews);
 
-// Health check endpoint (required for Render)
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy' });
+// Health check endpoint — includes DB connectivity status
+app.get('/health', async (req, res) => {
+  let dbStatus = 'not_configured';
+  let dbMessage = 'Database not configured';
+
+  try {
+    const conn = await pool.getConnection();
+    await conn.ping();
+    conn.release();
+    dbStatus = 'connected';
+    dbMessage = 'Database connected';
+  } catch (error) {
+    dbStatus = 'error';
+    dbMessage = error.message || 'Connection failed';
+  }
+
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    database: { status: dbStatus, message: dbMessage }
+  });
+});
+
+// ── Pusher auth (presence channel authorization) ──────────────────────────────
+app.post('/api/pusher/auth', (req, res) => {
+  const Pusher = require('pusher');
+
+  const appId = process.env.PUSHER_APP_ID;
+  const key = process.env.VITE_PUSHER_KEY;
+  const secret = process.env.PUSHER_SECRET;
+  const cluster = process.env.VITE_PUSHER_CLUSTER || 'us2';
+
+  if (!appId || !key || !secret) {
+    return res.status(500).json({ error: 'Pusher not configured' });
+  }
+
+  const pusher = new Pusher({ appId, key, secret, cluster, useTLS: true });
+
+  const { socket_id, channel_name } = req.body;
+
+  if (channel_name && channel_name.startsWith('presence-')) {
+    const visitorId = `visitor_${socket_id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const presenceData = {
+      user_id: visitorId,
+      user_info: { joined_at: new Date().toISOString() }
+    };
+    try {
+      const authResponse = pusher.authorizeChannel(socket_id, channel_name, presenceData);
+      return res.json(authResponse);
+    } catch (error) {
+      return res.status(500).json({ error: 'Authentication failed' });
+    }
+  }
+
+  try {
+    const authResponse = pusher.authorizeChannel(socket_id, channel_name);
+    return res.json(authResponse);
+  } catch (error) {
+    return res.status(500).json({ error: 'Authentication failed' });
+  }
+});
+
+// ── Pusher config (public key only — safe for client) ─────────────────────────
+app.get('/api/config/pusher', (req, res) => {
+  res.json({
+    key: process.env.VITE_PUSHER_KEY || null,
+    cluster: process.env.VITE_PUSHER_CLUSTER || 'us2'
+  });
 });
 
 // Root route — handled at the bottom of the file (React SPA or vanilla fallback)
