@@ -82,6 +82,14 @@ app.use('/api/projects/:id', authenticateToken, projectMembersRouter);
 const nodesRouter = require('./routes/nodes');
 app.use('/api/nodes', optionalAuth, nodesRouter);
 
+// Electronics properties, EDA linking, component selection (T3.1-T3.3)
+const electronicsRouter = require('./routes/electronics');
+app.use('/api/nodes', optionalAuth, electronicsRouter);
+
+// Power budget tracking (T3.4)
+const powerBudgetRouter = require('./routes/power-budget');
+app.use('/api/power-budget', optionalAuth, powerBudgetRouter);
+
 const requirementsRouter = require('./routes/requirements');
 app.use('/api/requirements', optionalAuth, requirementsRouter);
 

@@ -102,6 +102,13 @@ factoryos/
 - **T2.4: Trade study scoring (Pugh matrix)** — New route `routes/trade-studies.js` mounted at `/api/projects/:projectId/trade-studies`. Weighted criteria, multiple options with baseline indicator, batch score updates, auto-calculated weighted totals and rankings.
 - **T2.5: SOP execution mode** — New route `routes/sop-execution.js` mounted at `/api/sops/:sopId/executions`. Start execution session → sequential step sign-off (enforced order) → auto-complete when all steps done. Abort capability. Tracks who completed each step and when.
 
+### Tier 3 — Electronics / PCB Domain
+- **T3.1: Electronics node types** — Expanded ENUM with 6 new types: PCB, SCHEMATIC, HARNESS, SENSOR, FIRMWARE, CONNECTOR. New `node_electronics_props` table stores domain, voltage/current/power ratings, impedance, frequency range, operating temps, package type, pin count, RoHS/REACH/lead-free compliance, ESD sensitivity, thermal resistance.
+- **T3.2: EDA tool linking** — New `node_eda_links` table supports KiCad, Altium, Eagle, EasyEDA, OrCAD, Cadence. Stores project/schematic/PCB/BOM/Gerber URLs + git repo link. BOM import via `eda_bom_entries` with ref designator, footprint, manufacturer PN, distributor PN, lifecycle status. Routes at `/api/nodes/:nodeId/eda`.
+- **T3.3: Component selection** — New `component_selections` table with lifecycle tracking (active/NRND/obsolete/EOL), derating verification flag + notes, thermal verification + margin %, selection rationale, pricing/MOQ/lead time/stock. Second-source tracking via `component_alternates` with compatibility level (drop-in/form-fit/functional/partial). Routes at `/api/nodes/:nodeId/components`.
+- **T3.4: Power budget tracking** — New `power_rails` table with nominal voltage, tolerance, max current, source type (regulator/converter/battery/external), efficiency. `power_consumers` with typical/peak current, duty cycle, operating mode. Auto-calculates: typical/peak margins (mA and %), power draw (mW), input power accounting for efficiency, system-level summary. Routes at `/api/power-budget`.
+- **T3.5: Electronics phase gates** — 5 new gate types added to GATE_TYPES: schematic_review (phase 3a), pcb_layout_drc (3a), si_pi_analysis (5), emc_precompliance (6), power_budget (4). All enforce via existing check-gate endpoint.
+
 ---
 
 ## What Still Needs to Be Done
@@ -116,15 +123,15 @@ factoryos/
 | T2.4 | **Trade study scoring matrix** — weighted criteria, options, batch scoring, ranked results | Trade Studies | 2 days | DONE |
 | T2.5 | **SOP execution mode** — sequential step-by-step with sign-off, auto-complete, abort | SOP Execution | 2 days | DONE |
 
-### Tier 3 — Electronics / PCB Domain (New Capability)
+### Tier 3 — Electronics / PCB Domain (COMPLETED)
 
 | # | Action | Module | Effort | Status |
 |---|--------|--------|--------|--------|
-| T3.1 | **Add electronics node types** — PCB, SCHEMATIC, HARNESS, SENSOR with electrical properties (voltage, current, impedance, thermal) | Nodes | 3 days | NOT STARTED |
-| T3.2 | **EDA tool linking** — Store KiCad/Altium project URLs, import BOM from EDA tools | Nodes + Vendor | 3 days | NOT STARTED |
-| T3.3 | **Component selection workflow** — parametric search (Digi-Key/Mouser API), lifecycle checking, derating verification | Vendor | 5 days | NOT STARTED |
-| T3.4 | **Power budget tracking** — supply rails, consumers, margin calculations, thermal derating | New module | 3 days | NOT STARTED |
-| T3.5 | **Electronics-specific phase gates** — schematic review, layout DRC, SI/PI analysis checkpoints | Design Cycle | 2 days | NOT STARTED |
+| T3.1 | **Electronics node types** — PCB, SCHEMATIC, HARNESS, SENSOR, FIRMWARE, CONNECTOR + properties table | Nodes + electronics.js | 3 days | DONE |
+| T3.2 | **EDA tool linking** — KiCad/Altium/Eagle/EasyEDA/OrCAD + BOM import/export per link | electronics.js | 3 days | DONE |
+| T3.3 | **Component selection** — lifecycle status, derating verification, thermal verification, alternates/second-source | electronics.js | 5 days | DONE |
+| T3.4 | **Power budget tracking** — rails with source/efficiency, consumers with duty cycle, auto-calculated margins | power-budget.js | 3 days | DONE |
+| T3.5 | **Electronics phase gates** — schematic_review, pcb_layout_drc, si_pi_analysis, emc_precompliance, power_budget | design-cycle.js | 2 days | DONE |
 
 ### Tier 4 — Git / Firmware Domain (New Capability)
 

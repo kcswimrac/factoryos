@@ -1139,12 +1139,18 @@ router.get('/:id/reports/:reportId/validate', async (req, res) => {
 // T2.1: Phase Gate Enforcement
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Gate type definitions (matches frontend/src/config/designPhases.js GATE_TYPES)
+// Gate type definitions (matches frontend config + T3.5 electronics gates)
 const GATE_TYPES = {
   cost:             { name: 'Cost Gate', ownerRole: 'Finance/Program Manager', phase: '3c' },
   safety:           { name: 'Safety Gate', ownerRole: 'Safety Engineer', phase: '6' },
   manufacturability:{ name: 'Manufacturability Gate', ownerRole: 'Manufacturing Engineer', phase: '3c' },
-  serviceability:   { name: 'Serviceability Gate', ownerRole: 'Service Engineering', phase: '3b' }
+  serviceability:   { name: 'Serviceability Gate', ownerRole: 'Service Engineering', phase: '3b' },
+  // T3.5: Electronics-specific gates
+  schematic_review: { name: 'Schematic Review', ownerRole: 'Lead Electrical Engineer', phase: '3a' },
+  pcb_layout_drc:   { name: 'PCB Layout DRC', ownerRole: 'PCB Designer', phase: '3a' },
+  si_pi_analysis:   { name: 'SI/PI Analysis', ownerRole: 'Signal Integrity Engineer', phase: '5' },
+  emc_precompliance:{ name: 'EMC Pre-Compliance', ownerRole: 'EMC Engineer', phase: '6' },
+  power_budget:     { name: 'Power Budget Approval', ownerRole: 'Systems Engineer', phase: '4' }
 };
 
 // GET /:id/phase-gates — get all gates for a project
