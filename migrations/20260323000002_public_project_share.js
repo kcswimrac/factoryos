@@ -9,7 +9,7 @@ module.exports = {
   up: async (conn) => {
     await conn.query(`
       ALTER TABLE projects
-        ADD COLUMN share_token VARCHAR(36) UNIQUE DEFAULT (UUID())
+        ADD COLUMN share_token VARCHAR(36) UNIQUE
     `).catch(() => {});
     await conn.query(`
       ALTER TABLE projects

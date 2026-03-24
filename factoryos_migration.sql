@@ -386,7 +386,7 @@ CREATE UNIQUE INDEX doe_decisions_study_uniq ON doe_decisions(study_id);
 
 -- ─── Migration: 20260323000002_public_project_share.js ───
 ALTER TABLE projects
-        ADD COLUMN share_token VARCHAR(36) UNIQUE DEFAULT (UUID());
+        ADD COLUMN share_token VARCHAR(36) UNIQUE;
 
 ALTER TABLE projects
         ADD COLUMN is_public   TINYINT(1) NOT NULL DEFAULT 0;
